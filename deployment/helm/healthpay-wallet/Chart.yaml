@@ -1,0 +1,50 @@
+# ==================================================================================
+# Helm Chart - HealthPay Ledger V2
+# ==================================================================================
+
+apiVersion: v2
+name: healthpay-ledger
+description: HealthPay Ledger V2 - Event-sourced healthcare payment system for Egypt
+type: application
+version: 2.0.0
+appVersion: "2.0.0"
+keywords:
+  - healthpay
+  - payment
+  - healthcare
+  - egypt
+  - event-sourcing
+home: https://healthflow.eg
+sources:
+  - https://github.com/healthflow-enterprise/healthpay-ledger-v2
+maintainers:
+  - name: HealthFlow DevOps Team
+    email: devops@healthflow.eg
+icon: https://healthflow.eg/assets/logo.png
+
+# Dependencies
+dependencies:
+  - name: postgresql-ha
+    version: "~> 12.0"
+    repository: https://charts.bitnami.com/bitnami
+    condition: postgresql.enabled
+  
+  - name: redis
+    version: "~> 18.0"
+    repository: https://charts.bitnami.com/bitnami
+    condition: redis.enabled
+  
+  - name: kafka
+    version: "~> 26.0"
+    repository: https://charts.bitnami.com/bitnami
+    condition: kafka.enabled
+  
+  - name: prometheus
+    version: "~> 25.0"
+    repository: https://prometheus-community.github.io/helm-charts
+    condition: prometheus.enabled
+  
+  - name: grafana
+    version: "~> 7.0"
+    repository: https://grafana.github.io/helm-charts
+    condition: grafana.enabled

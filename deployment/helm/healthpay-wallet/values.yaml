@@ -1,0 +1,369 @@
+# ==================================================================================
+# Helm Values - HealthPay Ledger V2
+# ==================================================================================
+
+# Global settings
+global:
+  environment: production
+  imageRegistry: ghcr.io
+  imagePullSecrets:
+    - name: regcred
+
+# API Gateway (Kong)
+kong:
+  enabled: true
+  replicaCount: 3
+  image:
+    repository: kong
+    tag: "3.4"
+    pullPolicy: IfNotPresent
+  
+  service:
+    type: LoadBalancer
+    annotations:
+      service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+  
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "2000m"
+  
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 75
+
+# Backend Services
+authService:
+  enabled: true
+  replicaCount: 3
+  image:
+    repository: healthflow/healthpay/auth-service
+    tag: "2.0.0"
+    pullPolicy: IfNotPresent
+  
+  service:
+    port: 3001
+  
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+
+walletService:
+  enabled: true
+  replicaCount: 5
+  image:
+    repository: healthflow/healthpay/wallet-service
+    tag: "2.0.0"
+    pullPolicy: IfNotPresent
+  
+  service:
+    port: 3002
+  
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "500m"
+    limits:
+      memory: "1Gi"
+      cpu: "1000m"
+  
+  autoscaling:
+    enabled: true
+    minReplicas: 5
+    maxReplicas: 20
+    targetCPUUtilizationPercentage: 70
+
+paymentService:
+  enabled: true
+  replicaCount: 5
+  image:
+    repository: healthflow/healthpay/payment-service
+    tag: "2.0.0"
+    pullPolicy: IfNotPresent
+  
+  service:
+    port: 3003
+  
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "500m"
+    limits:
+      memory: "1Gi"
+      cpu: "1000m"
+  
+  autoscaling:
+    enabled: true
+    minReplicas: 5
+    maxReplicas: 20
+    targetCPUUtilizationPercentage: 70
+
+transactionService:
+  enabled: true
+  replicaCount: 3
+  image:
+    repository: healthflow/healthpay/transaction-service
+    tag: "2.0.0"
+    pullPolicy: IfNotPresent
+  
+  service:
+    port: 3004
+  
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+
+websocketServer:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: healthflow/healthpay/websocket-server
+    tag: "2.0.0"
+    pullPolicy: IfNotPresent
+  
+  service:
+    type: LoadBalancer
+    port: 8080
+  
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "500m"
+    limits:
+      memory: "1Gi"
+      cpu: "1000m"
+
+# Database - PostgreSQL
+postgresql:
+  enabled: true
+  auth:
+    username: healthpay
+    database: healthpay_ledger
+    existingSecret: healthpay-secrets
+    secretKeys:
+      adminPasswordKey: POSTGRES_PASSWORD
+  
+  architecture: replication
+  replication:
+    numSynchronousReplicas: 1
+  
+  primary:
+    resources:
+      requests:
+        memory: "2Gi"
+        cpu: "1000m"
+      limits:
+        memory: "4Gi"
+        cpu: "2000m"
+    
+    persistence:
+      enabled: true
+      size: 100Gi
+      storageClass: gp3
+  
+  readReplicas:
+    replicaCount: 2
+    resources:
+      requests:
+        memory: "1Gi"
+        cpu: "500m"
+      limits:
+        memory: "2Gi"
+        cpu: "1000m"
+    
+    persistence:
+      enabled: true
+      size: 100Gi
+      storageClass: gp3
+
+# Cache - Redis
+redis:
+  enabled: true
+  architecture: replication
+  auth:
+    enabled: true
+    existingSecret: healthpay-secrets
+    existingSecretPasswordKey: REDIS_PASSWORD
+  
+  master:
+    resources:
+      requests:
+        memory: "1Gi"
+        cpu: "500m"
+      limits:
+        memory: "2Gi"
+        cpu: "1000m"
+    
+    persistence:
+      enabled: true
+      size: 10Gi
+  
+  replica:
+    replicaCount: 2
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "250m"
+      limits:
+        memory: "1Gi"
+        cpu: "500m"
+    
+    persistence:
+      enabled: true
+      size: 10Gi
+
+# Event Streaming - Kafka
+kafka:
+  enabled: true
+  replicaCount: 3
+  
+  resources:
+    requests:
+      memory: "2Gi"
+      cpu: "1000m"
+    limits:
+      memory: "4Gi"
+      cpu: "2000m"
+  
+  persistence:
+    enabled: true
+    size: 100Gi
+    storageClass: gp3
+  
+  zookeeper:
+    replicaCount: 3
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "250m"
+      limits:
+        memory: "1Gi"
+        cpu: "500m"
+
+# Monitoring - Prometheus
+prometheus:
+  enabled: true
+  
+  server:
+    persistentVolume:
+      enabled: true
+      size: 100Gi
+      storageClass: gp3
+    
+    resources:
+      requests:
+        memory: "2Gi"
+        cpu: "1000m"
+      limits:
+        memory: "4Gi"
+        cpu: "2000m"
+    
+    retention: 30d
+
+# Visualization - Grafana
+grafana:
+  enabled: true
+  
+  adminPassword: changeme  # Override with secret
+  
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClass: gp3
+  
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+  
+  datasources:
+    datasources.yaml:
+      apiVersion: 1
+      datasources:
+        - name: Prometheus
+          type: prometheus
+          url: http://prometheus-server
+          access: proxy
+          isDefault: true
+
+# Ingress
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+  
+  hosts:
+    - host: api.healthpay.eg
+      paths:
+        - path: /
+          pathType: Prefix
+          backend:
+            service:
+              name: kong-proxy
+              port:
+                number: 80
+    
+    - host: ws.healthpay.eg
+      paths:
+        - path: /
+          pathType: Prefix
+          backend:
+            service:
+              name: websocket-server
+              port:
+                number: 8080
+  
+  tls:
+    - secretName: healthpay-tls
+      hosts:
+        - api.healthpay.eg
+        - ws.healthpay.eg
+
+# Service Mesh (Istio)
+serviceMesh:
+  enabled: false
+  # Enable for advanced traffic management, mTLS, etc.
+
+# Network Policies
+networkPolicies:
+  enabled: true
+  # Restrict pod-to-pod communication
+
+# Pod Security Policies
+podSecurityPolicy:
+  enabled: true
+  # Enforce security best practices
+
+# Backup Configuration
+backup:
+  enabled: true
+  schedule: "0 2 * * *"  # Daily at 2 AM
+  retention: 30  # days
+  destination: s3://healthpay-backups/
+
+# Egyptian-specific Configuration
+egyptian:
+  timezone: Africa/Cairo
+  defaultCurrency: EGP
+  defaultLanguage: ar
+  phoneRegex: "^(\\+20|20|0)?1[0125]\\d{8}$"
+  nationalIdRegex: "^\\d{14}$"

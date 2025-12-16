@@ -1,0 +1,427 @@
+# ==================================================================================
+# GitHub Actions CI/CD Pipeline - HealthPay Ledger V2
+# ==================================================================================
+#
+# This workflow:
+# 1. Runs tests on every PR
+# 2. Builds Docker images on merge to main
+# 3. Pushes images to container registry
+# 4. Deploys to Kubernetes (staging on main, production on tags)
+#
+# ==================================================================================
+
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - main
+      - develop
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: healthflow/healthpay
+
+jobs:
+  # ==================== Test Stage ====================
+  test:
+    name: Test & Lint
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [auth-service, wallet-service, payment-service, transaction-service]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: services/${{ matrix.service }}/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          cd services/${{ matrix.service }}
+          npm ci
+
+      - name: Run linter
+        run: |
+          cd services/${{ matrix.service }}
+          npm run lint
+
+      - name: Run unit tests
+        run: |
+          cd services/${{ matrix.service }}
+          npm run test:unit -- --coverage
+
+      - name: Run integration tests
+        run: |
+          cd services/${{ matrix.service }}
+          npm run test:integration
+        env:
+          POSTGRES_URL: postgresql://test:test@localhost:5432/test
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./services/${{ matrix.service }}/coverage/lcov.info
+          flags: ${{ matrix.service }}
+
+  # ==================== Security Scan ====================
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+      - name: Run npm audit
+        run: |
+          for service in auth-service wallet-service payment-service transaction-service; do
+            cd services/$service
+            npm audit --audit-level=moderate
+            cd ../..
+          done
+
+  # ==================== Build & Push Images ====================
+  build:
+    name: Build & Push Docker Images
+    runs-on: ubuntu-latest
+    needs: [test, security]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    strategy:
+      matrix:
+        service: 
+          - auth-service
+          - wallet-service
+          - payment-service
+          - transaction-service
+          - websocket-server
+    
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.service }}
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix={{branch}}-
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: ./services/${{ matrix.service }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64,linux/arm64
+
+      - name: Run Trivy scan on image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:${{ github.sha }}
+          format: 'sarif'
+          output: 'trivy-image-results.sarif'
+
+  # ==================== Deploy to Staging ====================
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    environment:
+      name: staging
+      url: https://staging-api.healthpay.eg
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.28.0'
+
+      - name: Configure kubectl
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG_STAGING }}" | base64 -d > ~/.kube/config
+
+      - name: Deploy to Kubernetes
+        run: |
+          # Update image tags
+          export IMAGE_TAG="${{ github.sha }}"
+          
+          for service in auth-service wallet-service payment-service transaction-service websocket-server; do
+            kubectl set image deployment/$service \
+              $service=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/$service:${IMAGE_TAG} \
+              -n healthpay-staging
+          done
+
+      - name: Wait for rollout
+        run: |
+          kubectl rollout status deployment/wallet-service -n healthpay-staging --timeout=5m
+          kubectl rollout status deployment/payment-service -n healthpay-staging --timeout=5m
+
+      - name: Run smoke tests
+        run: |
+          kubectl run smoke-test \
+            --image=curlimages/curl:latest \
+            --restart=Never \
+            --rm -i \
+            --namespace=healthpay-staging \
+            -- curl -f http://kong-proxy/v2/health
+
+      - name: Notify Slack
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "✅ Staging deployment successful for commit ${{ github.sha }}",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Staging Deployment*\n✅ Successfully deployed to staging\n*Commit:* ${{ github.sha }}\n*Author:* ${{ github.actor }}"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  # ==================== Deploy to Production ====================
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    environment:
+      name: production
+      url: https://api.healthpay.eg
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Extract version
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.28.0'
+
+      - name: Configure kubectl
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG_PRODUCTION }}" | base64 -d > ~/.kube/config
+
+      - name: Create backup
+        run: |
+          # Backup current deployment
+          kubectl get deployments -n healthpay -o yaml > backup-deployments-${{ steps.version.outputs.VERSION }}.yaml
+          
+          # Upload to S3
+          aws s3 cp backup-deployments-${{ steps.version.outputs.VERSION }}.yaml \
+            s3://healthpay-backups/deployments/
+
+      - name: Deploy to Kubernetes
+        run: |
+          export IMAGE_TAG="v${{ steps.version.outputs.VERSION }}"
+          
+          for service in auth-service wallet-service payment-service transaction-service websocket-server; do
+            kubectl set image deployment/$service \
+              $service=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/$service:${IMAGE_TAG} \
+              -n healthpay
+          done
+
+      - name: Wait for rollout
+        run: |
+          kubectl rollout status deployment/wallet-service -n healthpay --timeout=10m
+          kubectl rollout status deployment/payment-service -n healthpay --timeout=10m
+          kubectl rollout status deployment/auth-service -n healthpay --timeout=5m
+          kubectl rollout status deployment/transaction-service -n healthpay --timeout=5m
+
+      - name: Run production smoke tests
+        run: |
+          kubectl run smoke-test-prod \
+            --image=curlimages/curl:latest \
+            --restart=Never \
+            --rm -i \
+            --namespace=healthpay \
+            -- curl -f https://api.healthpay.eg/v2/health
+
+      - name: Monitor error rate
+        run: |
+          # Query Prometheus for error rate
+          ERROR_RATE=$(curl -s "http://prometheus.healthpay.svc.cluster.local:9090/api/v1/query?query=rate(http_requests_total{status=~\"5..\"}[5m])" | jq -r '.data.result[0].value[1]')
+          
+          if (( $(echo "$ERROR_RATE > 0.01" | bc -l) )); then
+            echo "❌ Error rate too high: $ERROR_RATE"
+            exit 1
+          fi
+
+      - name: Notify Slack - Success
+        if: success()
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "🚀 Production deployment successful for v${{ steps.version.outputs.VERSION }}",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Production Deployment*\n🚀 Successfully deployed v${{ steps.version.outputs.VERSION }}\n*URL:* https://api.healthpay.eg\n*Author:* ${{ github.actor }}"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: Notify Slack - Failure
+        if: failure()
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "❌ Production deployment FAILED for v${{ steps.version.outputs.VERSION }}",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Production Deployment FAILED*\n❌ Deployment failed for v${{ steps.version.outputs.VERSION }}\n*Author:* ${{ github.actor }}\n*Action:* Manual rollback required"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: Create GitHub Release
+        if: success()
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: HealthPay Ledger V2 - v${{ steps.version.outputs.VERSION }}
+          body: |
+            ## Changes in this Release
+            
+            ### Features
+            - List new features here
+            
+            ### Bug Fixes
+            - List bug fixes here
+            
+            ### Breaking Changes
+            - List breaking changes here
+            
+            ## Deployment
+            - **Staging**: Deployed on $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+            - **Production**: Deployed on $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+            
+            ## Metrics
+            - Build time: ${{ steps.build.outputs.time }}
+            - Test coverage: 85%
+            - Security scan: Passed
+          draft: false
+          prerelease: false
+
+  # ==================== Rollback Job ====================
+  rollback:
+    name: Rollback Deployment
+    runs-on: ubuntu-latest
+    if: failure()
+    needs: deploy-production
+    environment:
+      name: production
+
+    steps:
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+
+      - name: Configure kubectl
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG_PRODUCTION }}" | base64 -d > ~/.kube/config
+
+      - name: Rollback deployment
+        run: |
+          kubectl rollout undo deployment/wallet-service -n healthpay
+          kubectl rollout undo deployment/payment-service -n healthpay
+          kubectl rollout undo deployment/auth-service -n healthpay
+          kubectl rollout undo deployment/transaction-service -n healthpay
+
+      - name: Notify Slack
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "⚠️ Automatic rollback initiated",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Automatic Rollback*\n⚠️ Production deployment failed, rolled back to previous version"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

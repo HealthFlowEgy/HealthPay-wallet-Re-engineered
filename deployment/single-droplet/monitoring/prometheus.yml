@@ -1,0 +1,68 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'healthpay-production'
+    environment: 'production'
+
+# Load alerting rules
+rule_files:
+  - '/etc/prometheus/alerts.yml'
+
+# Scrape configurations
+scrape_configs:
+  # Command Service
+  - job_name: 'command-service'
+    static_configs:
+      - targets: ['command-service:3000']
+        labels:
+          service: 'command-service'
+          tier: 'backend'
+
+  # Query Service
+  - job_name: 'query-service'
+    static_configs:
+      - targets: ['query-service:4000']
+        labels:
+          service: 'query-service'
+          tier: 'backend'
+
+  # API Gateway
+  - job_name: 'api-gateway'
+    static_configs:
+      - targets: ['api-gateway:8000']
+        labels:
+          service: 'api-gateway'
+          tier: 'gateway'
+
+  # PostgreSQL
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres:5432']
+        labels:
+          service: 'postgres'
+          tier: 'database'
+
+  # Redis
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis:6379']
+        labels:
+          service: 'redis'
+          tier: 'cache'
+
+  # Redpanda
+  - job_name: 'redpanda'
+    static_configs:
+      - targets: ['redpanda:9644']
+        labels:
+          service: 'redpanda'
+          tier: 'messaging'
+
+  # Prometheus itself
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+        labels:
+          service: 'prometheus'
+          tier: 'monitoring'

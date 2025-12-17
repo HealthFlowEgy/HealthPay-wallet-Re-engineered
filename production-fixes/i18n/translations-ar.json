@@ -1,0 +1,127 @@
+// ✅ FIXED: Proper i18n Configuration
+// Location: packages/i18n/src/translations/ar.json
+
+{
+  "auth": {
+    "login": "تسجيل الدخول",
+    "register": "إنشاء حساب",
+    "logout": "تسجيل الخروج",
+    "phoneNumber": "رقم الهاتف",
+    "password": "كلمة المرور",
+    "confirmPassword": "تأكيد كلمة المرور",
+    "forgotPassword": "نسيت كلمة المرور؟",
+    "rememberMe": "تذكرني",
+    "otpCode": "رمز التحقق",
+    "sendOtp": "إرسال رمز التحقق",
+    "verifyOtp": "تحقق من الرمز",
+    "resendOtp": "إعادة إرسال الرمز"
+  },
+
+  "profile": {
+    "title": "الملف الشخصي",
+    "fullName": "الاسم الكامل",
+    "email": "البريد الإلكتروني",
+    "phone": "رقم الهاتف",
+    "nationalId": "الرقم القومي",
+    "editProfile": "تعديل الملف الشخصي",
+    "changePassword": "تغيير كلمة المرور",
+    "currentPassword": "كلمة المرور الحالية",
+    "newPassword": "كلمة المرور الجديدة"
+  },
+
+  "wallet": {
+    "balance": "الرصيد",
+    "transactions": "المعاملات",
+    "topUp": "شحن المحفظة",
+    "withdraw": "سحب",
+    "transfer": "تحويل",
+    "send": "إرسال",
+    "receive": "استقبال"
+  },
+
+  "settings": {
+    "title": "الإعدادات",
+    "language": "اللغة",
+    "notifications": "الإشعارات",
+    "security": "الأمان",
+    "privacy": "الخصوصية",
+    "twoFactorAuth": "المصادقة الثنائية",
+    "enableTwoFactor": "تفعيل المصادقة الثنائية",
+    "disableTwoFactor": "تعطيل المصادقة الثنائية"
+  },
+
+  "success": {
+    "profileUpdated": "تم تحديث الملف الشخصي بنجاح",
+    "passwordChanged": "تم تغيير كلمة المرور بنجاح",
+    "otpSent": "تم إرسال رمز التحقق بنجاح",
+    "loginSuccess": "تم تسجيل الدخول بنجاح",
+    "registrationSuccess": "تم إنشاء الحساب بنجاح",
+    "transactionSuccess": "تمت المعاملة بنجاح",
+    "settingsSaved": "تم حفظ الإعدادات بنجاح"
+  },
+
+  "errors": {
+    "generic": "حدث خطأ، يرجى المحاولة مرة أخرى",
+    "networkError": "خطأ في الاتصال، يرجى التحقق من الإنترنت",
+    "invalidPhone": "رقم الهاتف غير صحيح",
+    "invalidEmail": "البريد الإلكتروني غير صحيح",
+    "invalidOtp": "رمز التحقق غير صحيح",
+    "otpExpired": "انتهت صلاحية رمز التحقق",
+    "passwordMismatch": "كلمات المرور غير متطابقة",
+    "passwordTooShort": "كلمة المرور يجب أن تكون 8 أحرف على الأقل",
+    "passwordTooWeak": "كلمة المرور ضعيفة، يرجى استخدام مزيج من الأحرف والأرقام والرموز",
+    "invalidCredentials": "بيانات الدخول غير صحيحة",
+    "accountLocked": "تم قفل الحساب مؤقتاً بسبب محاولات دخول متعددة",
+    "insufficientBalance": "الرصيد غير كافٍ",
+    "transactionFailed": "فشلت المعاملة، يرجى المحاولة مرة أخرى",
+    "unauthorized": "غير مصرح لك بهذا الإجراء",
+    "sessionExpired": "انتهت صلاحية الجلسة، يرجى تسجيل الدخول مرة أخرى",
+    "rateLimitExceeded": "تم تجاوز الحد المسموح من الطلبات، يرجى المحاولة بعد قليل"
+  },
+
+  "validation": {
+    "required": "هذا الحقل مطلوب",
+    "minLength": "يجب أن يكون {min} أحرف على الأقل",
+    "maxLength": "يجب أن لا يتجاوز {max} حرف",
+    "invalidFormat": "التنسيق غير صحيح",
+    "mustBeNumber": "يجب أن يكون رقماً",
+    "mustBePositive": "يجب أن يكون رقماً موجباً",
+    "invalidNationalId": "الرقم القومي غير صحيح",
+    "mustBe18": "يجب أن تكون 18 سنة أو أكثر"
+  },
+
+  "actions": {
+    "save": "حفظ",
+    "cancel": "إلغاء",
+    "delete": "حذف",
+    "edit": "تعديل",
+    "view": "عرض",
+    "confirm": "تأكيد",
+    "back": "رجوع",
+    "next": "التالي",
+    "submit": "إرسال",
+    "close": "إغلاق",
+    "search": "بحث",
+    "filter": "تصفية",
+    "export": "تصدير",
+    "download": "تحميل",
+    "upload": "رفع",
+    "refresh": "تحديث"
+  },
+
+  "common": {
+    "loading": "جاري التحميل...",
+    "noData": "لا توجد بيانات",
+    "comingSoon": "قريباً",
+    "total": "الإجمالي",
+    "subtotal": "المجموع الفرعي",
+    "date": "التاريخ",
+    "time": "الوقت",
+    "status": "الحالة",
+    "amount": "المبلغ",
+    "description": "الوصف",
+    "reference": "المرجع",
+    "yes": "نعم",
+    "no": "لا"
+  }
+}

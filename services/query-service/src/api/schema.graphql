@@ -35,6 +35,7 @@ type User implements Timestamped {
   kycStatus: KYCStatus!
   wallets: [Wallet!]!
   medCards: [MedCard!]!
+  hasTransactionPin: Boolean!
   createdAt: DateTime!
   updatedAt: DateTime
 }
@@ -472,4 +473,78 @@ type Subscription {
 
   # Payment subscriptions
   paymentStatusChanged(paymentId: ID!): Payment!
+}
+
+# ============================================================================
+# HEALTHPAY WALLET - MONEY TRANSFER & PIN MANAGEMENT
+# ============================================================================
+
+input SendMoneyInput {
+  recipientPhone: String!
+  amount: Float!
+  pin: String!
+  description: String
+}
+
+input SetPinInput {
+  pin: String!
+  confirmPin: String!
+}
+
+input VerifyPinInput {
+  pin: String!
+}
+
+type SendMoneyResult {
+  success: Boolean!
+  transactionId: String
+  message: String
+  transaction: Transaction
+  newBalance: Float
+}
+
+type PinResult {
+  success: Boolean!
+  message: String
+}
+
+type VerifyPinResult {
+  success: Boolean!
+  message: String
+  hasPinSet: Boolean
+}
+
+extend type Query {
+  hasPinSet: Boolean!
+}
+
+extend type Mutation {
+  sendMoney(input: SendMoneyInput!): SendMoneyResult!
+  setPin(input: SetPinInput!): PinResult!
+  verifyPin(input: VerifyPinInput!): VerifyPinResult!
+}
+
+
+# ============================================================================
+# HEALTHPAY ADMIN & MERCHANT AUTHENTICATION
+# ============================================================================
+
+input AdminLoginInput {
+  email: String!
+  password: String!
+}
+
+input MerchantLoginInput {
+  merchantId: String!
+  password: String!
+}
+
+type AuthToken {
+  token: String!
+  refreshToken: String
+}
+
+extend type Mutation {
+  adminLogin(input: AdminLoginInput!): AuthToken!
+  merchantLogin(input: MerchantLoginInput!): AuthToken!
 }

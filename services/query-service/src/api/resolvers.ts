@@ -8,6 +8,9 @@
 import { Pool } from 'pg';
 import { PubSub } from 'graphql-subscriptions';
 import { MedCardCommandHandler, CreateMedCardCommand, ActivateMedCardCommand } from '../commands/medcard-command-handler';
+import bcrypt from 'bcryptjs';
+import { v4 as uuidv4 } from 'uuid';
+import jwt from 'jsonwebtoken';
 import { MedCardTier } from '../domain/medcard-aggregate';
 
 // -----------------------------------------------------------------------------
@@ -210,6 +213,16 @@ export const queryResolvers = {
       totalCopayments: parseFloat(row.total_copayments) || 0,
       averageClaimAmount: parseFloat(row.average_claim_amount) || 0,
     };
+  },
+  hasPinSet: async (_: any, __: any, context: ResolverContext) => {
+    if (!context.userId) {
+      throw new Error('غير مصرح');
+    }
+    const result = await context.readDb.query(
+      'SELECT pin_hash FROM users WHERE id = $1',
+      [context.userId]
+    );
+    return !!(result.rows[0]?.pin_hash);
   },
 };
 
@@ -441,6 +454,224 @@ export const mutationResolvers = {
       message: result.error || 'MedCard upgraded successfully',
     };
   },
+  setPin: async (
+    _: any,
+    { input }: { input: { pin: string; confirmPin: string } },
+    context: ResolverContext
+  ) => {
+    if (!context.userId) {
+      throw new Error('غير مصرح');
+    }
+
+    const { pin, confirmPin } = input;
+
+    // Validate PIN format
+    if (!/^\d{4,6}$/.test(pin)) {
+      return { success: false, message: 'رمز PIN يجب أن يكون 4-6 أرقام' };
+    }
+
+    if (pin !== confirmPin) {
+      return { success: false, message: 'رمز PIN غير متطابق' };
+    }
+
+    // Check if already set
+    const userResult = await context.readDb.query(
+      'SELECT pin_hash FROM users WHERE id = $1',
+      [context.userId]
+    );
+
+    if (userResult.rows[0]?.pin_hash) {
+      return { success: false, message: 'رمز PIN موجود بالفعل' };
+    }
+
+    // Hash and save
+    const pinHash = await bcrypt.hash(pin, 10);
+    await context.readDb.query(
+      'UPDATE users SET pin_hash = $1, updated_at = NOW() WHERE id = $2',
+      [pinHash, context.userId]
+    );
+
+    return { success: true, message: 'تم إنشاء رمز PIN بنجاح' };
+  },
+  verifyPin: async (
+    _: any,
+    { input }: { input: { pin: string } },
+    context: ResolverContext
+  ) => {
+    if (!context.userId) {
+      throw new Error('غير مصرح');
+    }
+
+    const result = await context.readDb.query(
+      'SELECT pin_hash FROM users WHERE id = $1',
+      [context.userId]
+    );
+
+    const user = result.rows[0];
+    if (!user?.pin_hash) {
+      return { success: false, message: 'لم يتم إعداد رمز PIN', hasPinSet: false };
+    }
+
+    const isValid = await bcrypt.compare(input.pin, user.pin_hash);
+    return {
+      success: isValid,
+      message: isValid ? 'رمز PIN صحيح' : 'رمز PIN غير صحيح',
+      hasPinSet: true,
+    };
+  },
+  sendMoney: async (
+    _: any,
+    { input }: { input: { recipientPhone: string; amount: number; pin: string; description?: string } },
+    context: ResolverContext
+  ) => {
+    if (!context.userId) {
+      throw new Error('غير مصرح');
+    }
+
+    const { recipientPhone, amount, pin, description } = input;
+
+    // Validate amount
+    if (amount <= 0) {
+      return { success: false, message: 'المبلغ يجب أن يكون أكبر من صفر' };
+    }
+
+    // Get sender
+    const senderResult = await context.readDb.query(
+      `SELECT u.id, u.phone_number, u.full_name, u.pin_hash, 
+              w.id as wallet_id, w.balance, w.available_balance
+       FROM users u
+       LEFT JOIN wallets w ON w.user_id = u.id
+       WHERE u.id = $1`,
+      [context.userId]
+    );
+
+    const sender = senderResult.rows[0];
+    if (!sender?.wallet_id) {
+      return { success: false, message: 'المحفظة غير موجودة' };
+    }
+
+    // Verify PIN
+    if (!sender.pin_hash) {
+      return { success: false, message: 'لم يتم إعداد رمز PIN' };
+    }
+
+    const isPinValid = await bcrypt.compare(pin, sender.pin_hash);
+    if (!isPinValid) {
+      return { success: false, message: 'رمز PIN غير صحيح' };
+    }
+
+    // Check balance
+    const senderBalance = parseFloat(sender.available_balance || sender.balance || '0');
+    if (senderBalance < amount) {
+      return { success: false, message: `الرصيد غير كافي. المتاح: ${senderBalance.toFixed(2)} جنيه` };
+    }
+
+    // Format phone
+    let formattedPhone = recipientPhone.replace(/\D/g, '');
+    if (formattedPhone.startsWith('0')) {
+      formattedPhone = '20' + formattedPhone.substring(1);
+    }
+    if (!formattedPhone.startsWith('20')) {
+      formattedPhone = '20' + formattedPhone;
+    }
+
+    // Find recipient
+    const recipientResult = await context.readDb.query(
+      `SELECT u.id, u.phone_number, u.full_name, 
+              w.id as wallet_id, w.balance, w.available_balance
+       FROM users u
+       LEFT JOIN wallets w ON w.user_id = u.id
+       WHERE u.phone_number = $1 OR u.phone_number = $2 OR u.phone_number = $3`,
+      [formattedPhone, '+' + formattedPhone, recipientPhone]
+    );
+
+    const recipient = recipientResult.rows[0];
+    if (!recipient) {
+      return { success: false, message: 'المستلم غير موجود' };
+    }
+
+    if (recipient.id === sender.id) {
+      return { success: false, message: 'لا يمكن التحويل لنفسك' };
+    }
+
+    if (!recipient.wallet_id) {
+      return { success: false, message: 'محفظة المستلم غير موجودة' };
+    }
+
+    // Calculate
+    const feeAmount = 0;
+    const netAmount = amount - feeAmount;
+    const transactionId = uuidv4();
+    const recipientBalance = parseFloat(recipient.available_balance || recipient.balance || '0');
+
+    // Execute transaction
+    await context.readDb.query('BEGIN');
+
+    try {
+      // Update sender
+      const newSenderBalance = senderBalance - amount;
+      await context.readDb.query(
+        'UPDATE wallets SET balance = $1, available_balance = $1, updated_at = NOW() WHERE id = $2',
+        [newSenderBalance, sender.wallet_id]
+      );
+
+      // Update recipient
+      const newRecipientBalance = recipientBalance + netAmount;
+      await context.readDb.query(
+        'UPDATE wallets SET balance = $1, available_balance = $1, updated_at = NOW() WHERE id = $2',
+        [newRecipientBalance, recipient.wallet_id]
+      );
+
+      // Create sender transaction (DEBIT)
+      await context.readDb.query(
+        `INSERT INTO transactions 
+         (id, wallet_id, user_id, type, amount, fee, net_amount, currency, status, description, 
+          recipient_id, recipient_phone, recipient_name, balance_before, balance_after, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW(), NOW())`,
+        [
+          transactionId, sender.wallet_id, sender.id, 'TRANSFER_OUT', amount, feeAmount, netAmount,
+          'EGP', 'COMPLETED', description || `تحويل إلى ${recipient.full_name || recipient.phone_number}`,
+          recipient.id, recipient.phone_number, recipient.full_name, senderBalance, newSenderBalance
+        ]
+      );
+
+      // Create recipient transaction (CREDIT)
+      await context.readDb.query(
+        `INSERT INTO transactions 
+         (id, wallet_id, user_id, type, amount, fee, net_amount, currency, status, description, 
+          sender_id, sender_phone, sender_name, balance_before, balance_after, reference_id, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, NOW(), NOW())`,
+        [
+          uuidv4(), recipient.wallet_id, recipient.id, 'TRANSFER_IN', netAmount, 0, netAmount,
+          'EGP', 'COMPLETED', description || `تحويل من ${sender.full_name || sender.phone_number}`,
+          sender.id, sender.phone_number, sender.full_name, recipientBalance, newRecipientBalance, transactionId
+        ]
+      );
+
+      await context.readDb.query('COMMIT');
+
+      return {
+        success: true,
+        transactionId,
+        message: 'تم التحويل بنجاح',
+        transaction: {
+          id: transactionId,
+          type: 'TRANSFER_OUT',
+          amount,
+          netAmount,
+          status: 'COMPLETED',
+          recipientName: recipient.full_name,
+          recipientPhone: recipient.phone_number,
+        },
+        newBalance: newSenderBalance,
+      };
+
+    } catch (error: any) {
+      await context.readDb.query('ROLLBACK');
+      console.error('[SendMoney] Failed:', error);
+      return { success: false, message: 'فشل التحويل: ' + error.message };
+    }
+  },
 };
 
 // -----------------------------------------------------------------------------
@@ -462,6 +693,13 @@ export const fieldResolvers = {
         [parent.id]
       );
       return result.rows;
+    },
+    hasTransactionPin: async (parent: any, _: any, context: ResolverContext) => {
+      const result = await context.readDb.query(
+        'SELECT transaction_pin IS NOT NULL as has_pin FROM users WHERE id = $1',
+        [parent.id]
+      );
+      return result.rows[0]?.has_pin || false;
     },
   },
 
@@ -524,6 +762,83 @@ export const fieldResolvers = {
       );
       return result.rows;
     },
+  },
+
+  // Authentication Mutations
+  adminLogin: async (_: any, { input }: { input: { email: string; password: string } }, context: ResolverContext) => {
+    const { email, password } = input;
+    const JWT_SECRET = process.env.JWT_SECRET || 'healthpay-jwt-secret-2025';
+
+    try {
+      const result = await context.db.query(
+        'SELECT * FROM admins WHERE email = $1 AND is_active = true',
+        [email.toLowerCase()]
+      );
+
+      const admin = result.rows[0];
+      if (!admin) {
+        throw new Error('Invalid credentials');
+      }
+
+      const valid = await bcrypt.compare(password, admin.password_hash);
+      if (!valid) {
+        throw new Error('Invalid credentials');
+      }
+
+      const token = jwt.sign(
+        { id: admin.id, email: admin.email, role: admin.role, type: 'admin' },
+        JWT_SECRET,
+        { expiresIn: '7d' }
+      );
+
+      // Update last login
+      await context.db.query(
+        'UPDATE admins SET last_login_at = NOW() WHERE id = $1',
+        [admin.id]
+      );
+
+      return { token, refreshToken: token };
+    } catch (error: any) {
+      console.error('Admin login error:', error);
+      throw new Error('Invalid credentials');
+    }
+  },
+
+  merchantLogin: async (_: any, { input }: { input: { merchantId: string; password: string } }, context: ResolverContext) => {
+    const { merchantId, password } = input;
+    const JWT_SECRET = process.env.JWT_SECRET || 'healthpay-jwt-secret-2025';
+
+    try {
+      const result = await context.db.query(
+        'SELECT * FROM merchants WHERE merchant_id = $1 AND status = $2',
+        [merchantId.toUpperCase(), 'active']
+      );
+
+      const merchant = result.rows[0];
+      if (!merchant) {
+        throw new Error('Invalid credentials');
+      }
+
+      if (!merchant.password_hash) {
+        throw new Error('Password not set for this merchant');
+      }
+
+      const valid = await bcrypt.compare(password, merchant.password_hash);
+      if (!valid) {
+        throw new Error('Invalid credentials');
+      }
+
+      const token = jwt.sign(
+        { id: merchant.id, merchantId: merchant.merchant_id, type: 'merchant' },
+        JWT_SECRET,
+        { expiresIn: '7d' }
+      );
+
+      return { token, refreshToken: token };
+    } catch (error: any) {
+      console.error('Merchant login error:', error);
+      throw new Error('Invalid credentials');
+    }
   },
 };
 

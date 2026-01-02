@@ -1,0 +1,287 @@
+# ==================================================================================
+# Docker Compose - HealthPay Ledger V2 - Sprint 5
+# API Gateway & Advanced Features
+# ==================================================================================
+#
+# This compose file sets up:
+# - Kong API Gateway with PostgreSQL
+# - Express API Gateway (alternative)
+# - WebSocket Server
+# - Redis (for rate limiting & pub/sub)
+# - All backend services
+#
+# Usage:
+#   docker-compose up -d
+#   docker-compose logs -f kong
+#   docker-compose down
+#
+# ==================================================================================
+
+version: '3.8'
+
+services:
+  # ==================== Databases ====================
+  
+  # PostgreSQL for Kong
+  kong-database:
+    image: postgres:15-alpine
+    container_name: healthpay-kong-db
+    environment:
+      POSTGRES_USER: kong
+      POSTGRES_DB: kong
+      POSTGRES_PASSWORD: kong_password
+    volumes:
+      - kong-db-data:/var/lib/postgresql/data
+    networks:
+      - healthpay-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kong"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis for rate limiting & WebSocket pub/sub
+  redis:
+    image: redis:7-alpine
+    container_name: healthpay-redis
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    networks:
+      - healthpay-network
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redpanda (Kafka-compatible) for event streaming
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:v23.2.8
+    container_name: healthpay-redpanda
+    command:
+      - redpanda
+      - start
+      - --smp 1
+      - --memory 1G
+      - --reserve-memory 0M
+      - --overprovisioned
+      - --node-id 0
+      - --kafka-addr PLAINTEXT://0.0.0.0:19092,OUTSIDE://0.0.0.0:9092
+      - --advertise-kafka-addr PLAINTEXT://redpanda:19092,OUTSIDE://localhost:9092
+    ports:
+      - "9092:9092"
+      - "19092:19092"
+    networks:
+      - healthpay-network
+    volumes:
+      - redpanda-data:/var/lib/redpanda/data
+
+  # ==================== API Gateways ====================
+  
+  # Kong API Gateway
+  kong-migrations:
+    image: kong:3.4
+    container_name: healthpay-kong-migrations
+    command: kong migrations bootstrap
+    environment:
+      KONG_DATABASE: postgres
+      KONG_PG_HOST: kong-database
+      KONG_PG_PORT: 5432
+      KONG_PG_USER: kong
+      KONG_PG_PASSWORD: kong_password
+      KONG_PG_DATABASE: kong
+    networks:
+      - healthpay-network
+    depends_on:
+      kong-database:
+        condition: service_healthy
+    restart: on-failure
+
+  kong:
+    image: kong:3.4
+    container_name: healthpay-kong
+    environment:
+      KONG_DATABASE: postgres
+      KONG_PG_HOST: kong-database
+      KONG_PG_PORT: 5432
+      KONG_PG_USER: kong
+      KONG_PG_PASSWORD: kong_password
+      KONG_PG_DATABASE: kong
+      
+      # Admin API
+      KONG_ADMIN_LISTEN: 0.0.0.0:8001
+      KONG_ADMIN_ACCESS_LOG: /dev/stdout
+      KONG_ADMIN_ERROR_LOG: /dev/stderr
+      
+      # Proxy
+      KONG_PROXY_LISTEN: 0.0.0.0:8000, 0.0.0.0:8443 ssl
+      KONG_PROXY_ACCESS_LOG: /dev/stdout
+      KONG_PROXY_ERROR_LOG: /dev/stderr
+      
+      # Plugins
+      KONG_PLUGINS: bundled,prometheus
+    ports:
+      - "8000:8000"   # Proxy HTTP
+      - "8443:8443"   # Proxy HTTPS
+      - "8001:8001"   # Admin API
+    networks:
+      - healthpay-network
+    depends_on:
+      kong-database:
+        condition: service_healthy
+      kong-migrations:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "kong", "health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Express API Gateway (Alternative)
+  express-gateway:
+    build:
+      context: ./express-gateway
+      dockerfile: Dockerfile
+    container_name: healthpay-express-gateway
+    environment:
+      NODE_ENV: development
+      GATEWAY_PORT: 4000
+      JWT_SECRET: your-super-secret-jwt-key-change-in-production
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      
+      # Backend services
+      AUTH_SERVICE_URL: http://auth-service:3001
+      WALLET_SERVICE_URL: http://wallet-service:3002
+      PAYMENT_SERVICE_URL: http://payment-service:3003
+      TRANSACTION_SERVICE_URL: http://transaction-service:3004
+    ports:
+      - "4000:4000"
+    networks:
+      - healthpay-network
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ==================== WebSocket Server ====================
+  
+  websocket-server:
+    build:
+      context: ./websocket
+      dockerfile: Dockerfile
+    container_name: healthpay-websocket
+    environment:
+      NODE_ENV: development
+      WS_PORT: 8080
+      JWT_SECRET: your-super-secret-jwt-key-change-in-production
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      KAFKA_BROKERS: redpanda:19092
+    ports:
+      - "8080:8080"
+    networks:
+      - healthpay-network
+    depends_on:
+      - redis
+      - redpanda
+    restart: unless-stopped
+
+  # ==================== Backend Services (Mocks for Testing) ====================
+  
+  auth-service:
+    image: mockserver/mockserver:latest
+    container_name: healthpay-auth-service-mock
+    environment:
+      MOCKSERVER_INITIALIZATION_JSON_PATH: /config/auth-mock.json
+    volumes:
+      - ./mocks/auth-mock.json:/config/auth-mock.json
+    ports:
+      - "3001:1080"
+    networks:
+      - healthpay-network
+
+  wallet-service:
+    image: mockserver/mockserver:latest
+    container_name: healthpay-wallet-service-mock
+    environment:
+      MOCKSERVER_INITIALIZATION_JSON_PATH: /config/wallet-mock.json
+    volumes:
+      - ./mocks/wallet-mock.json:/config/wallet-mock.json
+    ports:
+      - "3002:1080"
+    networks:
+      - healthpay-network
+
+  payment-service:
+    image: mockserver/mockserver:latest
+    container_name: healthpay-payment-service-mock
+    environment:
+      MOCKSERVER_INITIALIZATION_JSON_PATH: /config/payment-mock.json
+    volumes:
+      - ./mocks/payment-mock.json:/config/payment-mock.json
+    ports:
+      - "3003:1080"
+    networks:
+      - healthpay-network
+
+  transaction-service:
+    image: mockserver/mockserver:latest
+    container_name: healthpay-transaction-service-mock
+    environment:
+      MOCKSERVER_INITIALIZATION_JSON_PATH: /config/transaction-mock.json
+    volumes:
+      - ./mocks/transaction-mock.json:/config/transaction-mock.json
+    ports:
+      - "3004:1080"
+    networks:
+      - healthpay-network
+
+  # ==================== Monitoring ====================
+  
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: healthpay-prometheus
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    ports:
+      - "9090:9090"
+    networks:
+      - healthpay-network
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: healthpay-grafana
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: 'false'
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana-dashboards:/etc/grafana/provisioning/dashboards
+      - ./monitoring/grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
+    ports:
+      - "3000:3000"
+    networks:
+      - healthpay-network
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+networks:
+  healthpay-network:
+    driver: bridge
+
+volumes:
+  kong-db-data:
+  redis-data:
+  redpanda-data:
+  prometheus-data:
+  grafana-data:

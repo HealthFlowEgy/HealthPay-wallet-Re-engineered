@@ -1,0 +1,265 @@
+version: '3.9'
+
+services:
+  # =============================================================================
+  # DATABASES
+  # =============================================================================
+  
+  postgres:
+    image: postgres:15-alpine
+    container_name: healthpay-postgres
+    environment:
+      POSTGRES_DB: healthpay_ledger
+      POSTGRES_USER: healthpay
+      POSTGRES_PASSWORD: healthpay_dev_2024
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-scripts/postgres:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U healthpay"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - healthpay
+
+  scylla:
+    image: scylladb/scylla:5.2
+    container_name: healthpay-scylla
+    command: --smp 2 --memory 2G --overprovisioned 1
+    ports:
+      - "9042:9042"
+      - "9160:9160"
+      - "10000:10000"
+    volumes:
+      - scylla_data:/var/lib/scylla
+      - ./init-scripts/scylla:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD", "cqlsh", "-e", "describe keyspaces"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - healthpay
+
+  redis:
+    image: redis:7-alpine
+    container_name: healthpay-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - healthpay
+
+  # =============================================================================
+  # MESSAGE BROKER
+  # =============================================================================
+  
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:v23.3.3
+    container_name: healthpay-redpanda
+    command:
+      - redpanda
+      - start
+      - --kafka-addr internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --advertise-kafka-addr internal://redpanda:9092,external://localhost:19092
+      - --pandaproxy-addr internal://0.0.0.0:8082,external://0.0.0.0:18082
+      - --advertise-pandaproxy-addr internal://redpanda:8082,external://localhost:18082
+      - --schema-registry-addr internal://0.0.0.0:8081,external://0.0.0.0:18081
+      - --rpc-addr redpanda:33145
+      - --advertise-rpc-addr redpanda:33145
+      - --smp 2
+      - --memory 2G
+      - --overprovisioned
+    ports:
+      - "18081:18081"
+      - "18082:18082"
+      - "19092:19092"
+      - "9644:9644"
+    volumes:
+      - redpanda_data:/var/lib/redpanda/data
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - healthpay
+
+  # =============================================================================
+  # HEALTHPAY SERVICES
+  # =============================================================================
+  
+  projection-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.projection
+    container_name: healthpay-projection
+    environment:
+      NODE_ENV: development
+      KAFKA_BROKERS: redpanda:9092
+      KAFKA_GROUP_ID: projection-service-cg
+      KAFKA_TOPIC: healthpay.events.wallet
+      POSTGRES_URL: postgresql://healthpay:healthpay_dev_2024@postgres:5432/healthpay_ledger
+      SCYLLA_HOSTS: scylla:9042
+      SCYLLA_KEYSPACE: healthpay_balances
+      SCYLLA_DATACENTER: datacenter1
+    depends_on:
+      postgres:
+        condition: service_healthy
+      scylla:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - healthpay
+    deploy:
+      replicas: 2
+
+  command-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.command
+    container_name: healthpay-command
+    environment:
+      NODE_ENV: development
+      PORT: 3001
+      KAFKA_BROKERS: redpanda:9092
+      KAFKA_CLIENT_ID: command-service
+      KAFKA_TOPIC: healthpay.events.wallet
+      POSTGRES_URL: postgresql://healthpay:healthpay_dev_2024@postgres:5432/healthpay_ledger
+      JWT_SECRET: dev-jwt-secret-change-in-production
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - healthpay
+    deploy:
+      replicas: 3
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: healthpay-api
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      POSTGRES_URL: postgresql://healthpay:healthpay_dev_2024@postgres:5432/healthpay_ledger
+      REDIS_URL: redis://redis:6379
+      COMMAND_SERVICE_URL: http://command-service:3001
+      JWT_SECRET: dev-jwt-secret-change-in-production
+      CORS_ORIGINS: http://localhost:3000,http://localhost:4200
+      RATE_LIMIT_WINDOW: 900000
+      RATE_LIMIT_MAX: 1000
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      command-service:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - healthpay
+
+  # =============================================================================
+  # MONITORING
+  # =============================================================================
+  
+  prometheus:
+    image: prom/prometheus:v2.48.1
+    container_name: healthpay-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+    networks:
+      - healthpay
+
+  grafana:
+    image: grafana/grafana:10.2.3
+    container_name: healthpay-grafana
+    ports:
+      - "4000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_INSTALL_PLUGINS: grafana-piechart-panel
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./config/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./config/grafana/datasources:/etc/grafana/provisioning/datasources
+    depends_on:
+      - prometheus
+    networks:
+      - healthpay
+
+  # =============================================================================
+  # UTILITIES
+  # =============================================================================
+  
+  redpanda-console:
+    image: docker.redpanda.com/redpandadata/console:v2.4.0
+    container_name: healthpay-redpanda-console
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_BROKERS: redpanda:9092
+      KAFKA_SCHEMAREGISTRY_ENABLED: true
+      KAFKA_SCHEMAREGISTRY_URLS: http://redpanda:8081
+    depends_on:
+      - redpanda
+    networks:
+      - healthpay
+
+# =============================================================================
+# VOLUMES
+# =============================================================================
+
+volumes:
+  postgres_data:
+    driver: local
+  scylla_data:
+    driver: local
+  redpanda_data:
+    driver: local
+  redis_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+
+# =============================================================================
+# NETWORKS
+# =============================================================================
+
+networks:
+  healthpay:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

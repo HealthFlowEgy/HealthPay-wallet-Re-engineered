@@ -1,0 +1,188 @@
+# Prometheus Alerting Rules for HealthPay Wallet
+# These rules define when to trigger alerts based on metrics
+
+groups:
+  - name: healthpay_critical_alerts
+    interval: 30s
+    rules:
+      # High Error Rate Alert
+      - alert: HighErrorRate
+        expr: (rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m])) > 0.01
+        for: 2m
+        labels:
+          severity: critical
+          team: backend
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is {{ $value | humanizePercentage }} (threshold: 1%)"
+          
+      # Service Down Alert
+      - alert: ServiceDown
+        expr: up{job=~"command-service|api-gateway|query-service"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: devops
+        annotations:
+          summary: "Service {{ $labels.job }} is down"
+          description: "{{ $labels.job }} has been down for more than 1 minute"
+          
+      # High Response Time Alert
+      - alert: HighResponseTime
+        expr: histogram_quantile(0.99, rate(http_request_duration_seconds_bucket[5m])) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "High response time detected"
+          description: "P99 latency is {{ $value }}s (threshold: 500ms)"
+          
+      # Database Connection Pool Exhaustion
+      - alert: DatabaseConnectionPoolExhausted
+        expr: (pg_stat_database_numbackends / pg_settings_max_connections) > 0.8
+        for: 2m
+        labels:
+          severity: critical
+          team: database
+        annotations:
+          summary: "Database connection pool nearly exhausted"
+          description: "{{ $value | humanizePercentage }} of connections in use"
+          
+      # Redis Down Alert
+      - alert: RedisDown
+        expr: redis_up == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: devops
+        annotations:
+          summary: "Redis is down"
+          description: "Redis has been down for more than 1 minute. Rate limiting will fail."
+          
+      # High Memory Usage
+      - alert: HighMemoryUsage
+        expr: (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes > 0.85
+        for: 5m
+        labels:
+          severity: warning
+          team: devops
+        annotations:
+          summary: "High memory usage detected"
+          description: "Memory usage is {{ $value | humanizePercentage }} (threshold: 85%)"
+          
+      # High CPU Usage
+      - alert: HighCPUUsage
+        expr: 100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 5m
+        labels:
+          severity: warning
+          team: devops
+        annotations:
+          summary: "High CPU usage detected"
+          description: "CPU usage is {{ $value }}% (threshold: 80%)"
+          
+      # Disk Space Low
+      - alert: DiskSpaceLow
+        expr: (node_filesystem_avail_bytes / node_filesystem_size_bytes) < 0.15
+        for: 5m
+        labels:
+          severity: warning
+          team: devops
+        annotations:
+          summary: "Disk space running low"
+          description: "Only {{ $value | humanizePercentage }} disk space remaining"
+
+  - name: healthpay_business_alerts
+    interval: 1m
+    rules:
+      # High SMS Failure Rate
+      - alert: HighSMSFailureRate
+        expr: (rate(sms_send_failures_total[5m]) / rate(sms_send_total[5m])) > 0.05
+        for: 3m
+        labels:
+          severity: critical
+          team: backend
+        annotations:
+          summary: "High SMS failure rate"
+          description: "SMS failure rate is {{ $value | humanizePercentage }} (threshold: 5%)"
+          
+      # Rate Limit Triggered Frequently
+      - alert: RateLimitTriggeredFrequently
+        expr: rate(rate_limit_exceeded_total[5m]) > 10
+        for: 5m
+        labels:
+          severity: warning
+          team: security
+        annotations:
+          summary: "Rate limiting triggered frequently"
+          description: "{{ $value }} rate limit violations per second. Possible attack?"
+          
+      # Failed Login Attempts Spike
+      - alert: FailedLoginAttemptsSpike
+        expr: rate(auth_login_failures_total[5m]) > 5
+        for: 2m
+        labels:
+          severity: warning
+          team: security
+        annotations:
+          summary: "Spike in failed login attempts"
+          description: "{{ $value }} failed login attempts per second. Possible brute force attack?"
+          
+      # Wallet Balance Mismatch
+      - alert: WalletBalanceMismatch
+        expr: abs(wallet_balance_command_side - wallet_balance_query_side) > 0.01
+        for: 1m
+        labels:
+          severity: critical
+          team: backend
+        annotations:
+          summary: "Wallet balance mismatch detected"
+          description: "Command-side and query-side balances differ by {{ $value }}"
+          
+      # Event Processing Lag
+      - alert: EventProcessingLag
+        expr: kafka_consumer_lag > 1000
+        for: 5m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "Event processing lag detected"
+          description: "Kafka consumer lag is {{ $value }} events (threshold: 1000)"
+
+  - name: healthpay_performance_alerts
+    interval: 1m
+    rules:
+      # Slow Database Queries
+      - alert: SlowDatabaseQueries
+        expr: histogram_quantile(0.99, rate(pg_stat_statements_mean_exec_time_bucket[5m])) > 1000
+        for: 5m
+        labels:
+          severity: warning
+          team: database
+        annotations:
+          summary: "Slow database queries detected"
+          description: "P99 query time is {{ $value }}ms (threshold: 1000ms)"
+          
+      # High Event Store Write Latency
+      - alert: HighEventStoreWriteLatency
+        expr: histogram_quantile(0.99, rate(event_store_write_duration_seconds_bucket[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "High event store write latency"
+          description: "P99 write latency is {{ $value }}s (threshold: 100ms)"
+          
+      # Cache Hit Rate Low
+      - alert: CacheHitRateLow
+        expr: (rate(redis_keyspace_hits_total[5m]) / (rate(redis_keyspace_hits_total[5m]) + rate(redis_keyspace_misses_total[5m]))) < 0.8
+        for: 10m
+        labels:
+          severity: info
+          team: backend
+        annotations:
+          summary: "Cache hit rate is low"
+          description: "Cache hit rate is {{ $value | humanizePercentage }} (threshold: 80%)"

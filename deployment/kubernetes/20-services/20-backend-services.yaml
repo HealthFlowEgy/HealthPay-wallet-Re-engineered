@@ -1,0 +1,513 @@
+# ==================================================================================
+# Backend Microservices - Kubernetes Deployments
+# ==================================================================================
+
+---
+# Auth Service
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth-service
+  namespace: healthpay
+  labels:
+    app: auth-service
+    version: v2
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: auth-service
+  template:
+    metadata:
+      labels:
+        app: auth-service
+        version: v2
+    spec:
+      containers:
+      - name: auth-service
+        image: healthpay/auth-service:2.0.0
+        ports:
+        - containerPort: 3001
+          name: http
+        env:
+        - name: NODE_ENV
+          valueFrom:
+            configMapKeyRef:
+              name: healthpay-config
+              key: NODE_ENV
+        - name: PORT
+          value: "3001"
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: healthpay-secrets
+              key: JWT_SECRET
+        - name: REDIS_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: healthpay-config
+              key: REDIS_HOST
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: healthpay-secrets
+              key: REDIS_PASSWORD
+        - name: CEQUENS_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: healthpay-secrets
+              key: CEQUENS_API_KEY
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3001
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 3001
+          initialDelaySeconds: 10
+          periodSeconds: 5
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: auth-service
+  namespace: healthpay
+spec:
+  selector:
+    app: auth-service
+  ports:
+  - port: 3001
+    targetPort: 3001
+    name: http
+
+---
+# Wallet Service
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wallet-service
+  namespace: healthpay
+  labels:
+    app: wallet-service
+    version: v2
+spec:
+  replicas: 5
+  selector:
+    matchLabels:
+      app: wallet-service
+  template:
+    metadata:
+      labels:
+        app: wallet-service
+        version: v2
+    spec:
+      containers:
+      - name: wallet-service
+        image: healthpay/wallet-service:2.0.0
+        ports:
+        - containerPort: 3002
+          name: http
+        env:
+        - name: NODE_ENV
+          valueFrom:
+            configMapKeyRef:
+              name: healthpay-config
+              key: NODE_ENV
+        - name: PORT
+          value: "3002"
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: healthpay-secrets
+              key: JWT_SECRET
+        - name: POSTGRES_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: healthpay-config
+              key: POSTGRES_HOST
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: healthpay-secrets
+              key: POSTGRES_PASSWORD
+        - name: SCYLLA_HOSTS
+          valueFrom:
+            configMapKeyRef:
+              name: healthpay-config
+              key: SCYLLA_HOSTS
+        - name: KAFKA_BROKERS
+          valueFrom:
+            configMapKeyRef:
+              name: healthpay-config
+              key: KAFKA_BROKERS
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3002
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 3002
+          initialDelaySeconds: 10
+          periodSeconds: 5
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wallet-service
+  namespace: healthpay
+spec:
+  selector:
+    app: wallet-service
+  ports:
+  - port: 3002
+    targetPort: 3002
+    name: http
+
+---
+# Payment Service
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-service
+  namespace: healthpay
+  labels:
+    app: payment-service
+    version: v2
+spec:
+  replicas: 5
+  selector:
+    matchLabels:
+      app: payment-service
+  template:
+    metadata:
+      labels:
+        app: payment-service
+        version: v2
+    spec:
+      containers:
+      - name: payment-service
+        image: healthpay/payment-service:2.0.0
+        ports:
+        - containerPort: 3003
+          name: http
+        env:
+        - name: NODE_ENV
+          valueFrom:
+            configMapKeyRef:
+              name: healthpay-config
+              key: NODE_ENV
+        - name: PORT
+          value: "3003"
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: healthpay-secrets
+              key: JWT_SECRET
+        - name: POSTGRES_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: healthpay-config
+              key: POSTGRES_HOST
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: healthpay-secrets
+              key: POSTGRES_PASSWORD
+        - name: KAFKA_BROKERS
+          valueFrom:
+            configMapKeyRef:
+              name: healthpay-config
+              key: KAFKA_BROKERS
+        - name: FAWRY_MERCHANT_CODE
+          valueFrom:
+            secretKeyRef:
+              name: healthpay-secrets
+              key: FAWRY_MERCHANT_CODE
+        - name: FAWRY_SECURITY_KEY
+          valueFrom:
+            secretKeyRef:
+              name: healthpay-secrets
+              key: FAWRY_SECURITY_KEY
+        - name: PAYMOB_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: healthpay-secrets
+              key: PAYMOB_API_KEY
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3003
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 3003
+          initialDelaySeconds: 10
+          periodSeconds: 5
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: payment-service
+  namespace: healthpay
+spec:
+  selector:
+    app: payment-service
+  ports:
+  - port: 3003
+    targetPort: 3003
+    name: http
+
+---
+# Transaction Service
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: transaction-service
+  namespace: healthpay
+  labels:
+    app: transaction-service
+    version: v2
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: transaction-service
+  template:
+    metadata:
+      labels:
+        app: transaction-service
+        version: v2
+    spec:
+      containers:
+      - name: transaction-service
+        image: healthpay/transaction-service:2.0.0
+        ports:
+        - containerPort: 3004
+          name: http
+        env:
+        - name: NODE_ENV
+          valueFrom:
+            configMapKeyRef:
+              name: healthpay-config
+              key: NODE_ENV
+        - name: PORT
+          value: "3004"
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: healthpay-secrets
+              key: JWT_SECRET
+        - name: POSTGRES_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: healthpay-config
+              key: POSTGRES_HOST
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: healthpay-secrets
+              key: POSTGRES_PASSWORD
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3004
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 3004
+          initialDelaySeconds: 10
+          periodSeconds: 5
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: transaction-service
+  namespace: healthpay
+spec:
+  selector:
+    app: transaction-service
+  ports:
+  - port: 3004
+    targetPort: 3004
+    name: http
+
+---
+# WebSocket Server
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: websocket-server
+  namespace: healthpay
+  labels:
+    app: websocket-server
+    version: v2
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: websocket-server
+  template:
+    metadata:
+      labels:
+        app: websocket-server
+        version: v2
+    spec:
+      containers:
+      - name: websocket-server
+        image: healthpay/websocket-server:2.0.0
+        ports:
+        - containerPort: 8080
+          name: websocket
+        env:
+        - name: NODE_ENV
+          valueFrom:
+            configMapKeyRef:
+              name: healthpay-config
+              key: NODE_ENV
+        - name: WS_PORT
+          value: "8080"
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: healthpay-secrets
+              key: JWT_SECRET
+        - name: REDIS_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: healthpay-config
+              key: REDIS_HOST
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: healthpay-secrets
+              key: REDIS_PASSWORD
+        - name: KAFKA_BROKERS
+          valueFrom:
+            configMapKeyRef:
+              name: healthpay-config
+              key: KAFKA_BROKERS
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 5
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: websocket-server
+  namespace: healthpay
+spec:
+  type: LoadBalancer
+  selector:
+    app: websocket-server
+  ports:
+  - port: 8080
+    targetPort: 8080
+    name: websocket
+
+---
+# HPA for Backend Services
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: wallet-service-hpa
+  namespace: healthpay
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: wallet-service
+  minReplicas: 5
+  maxReplicas: 20
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 75
+
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: payment-service-hpa
+  namespace: healthpay
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: payment-service
+  minReplicas: 5
+  maxReplicas: 20
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70

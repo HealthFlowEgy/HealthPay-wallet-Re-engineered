@@ -1,0 +1,41 @@
+# Database Migration - Git Ignore
+
+# Ignore all SQL dump files (sensitive data)
+*.sql
+*.sql.gz
+*.sql.zip
+*.sql.tar.gz
+
+# Ignore database backups
+*.bak
+*.backup
+*.dump
+
+# Ignore compressed archives
+*.tar
+*.tar.gz
+*.tgz
+*.zip
+*.7z
+
+# Ignore temporary files
+*.tmp
+*.temp
+*.log
+
+# Ignore credentials (keep .txt.example only)
+DATABASE_CREDENTIALS.txt
+
+# Keep example files
+!DATABASE_CREDENTIALS.txt.example
+!*.example
+
+# Keep scripts
+!*.sh
+!*.py
+!*.js
+
+# Keep documentation
+!README.md
+!MIGRATION_SUMMARY.txt
+!*.md

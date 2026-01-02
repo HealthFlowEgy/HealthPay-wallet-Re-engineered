@@ -1,0 +1,20 @@
+{
+  "name": "@healthpay/websocket",
+  "version": "1.0.0",
+  "description": "WebSocket client for real-time HealthPay updates",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "lint": "eslint src --ext .ts",
+    "test": "jest"
+  },
+  "dependencies": {
+    "ws": "^8.14.0"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.5.0",
+    "typescript": "^5.3.0"
+  }
+}

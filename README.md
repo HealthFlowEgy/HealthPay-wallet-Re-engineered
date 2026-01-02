@@ -1,426 +1,370 @@
-# Sprint 0: Foundation Setup (Week 1-2)
+# HealthPay Wallet - Re-engineered
 
-## 🎯 Sprint Goals
+A comprehensive digital wallet platform for healthcare payments in Egypt, featuring event-sourcing architecture with CQRS pattern.
 
-- ✅ Monorepo setup with Turborepo
-- ✅ Project structure and configurations
-- ✅ Docker Compose for development
-- ✅ GitHub Actions CI/CD
-- ✅ Database initialization scripts
-- ✅ Documentation
-
-## 📦 Deliverables
-
-### 1. Repository Structure
-```
-healthpay-ledger-v2/
-├── .github/
-│   └── workflows/
-│       └── ci.yml                 # CI/CD pipeline
-├── apps/                          # Frontend applications (empty for now)
-├── services/                      # Backend services (empty for now)
-├── packages/                      # Shared packages (empty for now)
-├── infrastructure/
-│   └── monitoring/
-│       └── prometheus.yml         # Prometheus config
-├── scripts/
-│   ├── postgres-init.sql          # PostgreSQL schema
-│   ├── scylla-init.cql           # ScyllaDB schema
-│   └── clickhouse-init.sql       # ClickHouse schema
-├── docker-compose.yml             # Development environment
-├── Makefile                       # Convenience commands
-├── package.json                   # Root package.json
-├── turbo.json                     # Turborepo config
-├── tsconfig.json                  # TypeScript config
-├── .gitignore                     # Git ignore rules
-├── .env.example                   # Environment template
-└── README.md                      # This file
-```
-
-### 2. Infrastructure
-- ✅ Redpanda (Kafka-compatible message broker)
-- ✅ ScyllaDB (Balance projections)
-- ✅ PostgreSQL + TimescaleDB (Transaction history)
-- ✅ ClickHouse (Analytics)
-- ✅ Redis (Caching)
-- ✅ Prometheus (Metrics)
-- ✅ Grafana (Dashboards)
-- ✅ Jaeger (Distributed tracing)
-
-### 3. CI/CD Pipeline
-- ✅ Lint checking (ESLint + Prettier)
-- ✅ Type checking (TypeScript)
-- ✅ Unit tests
-- ✅ Docker builds
-- ✅ Security scanning (Trivy + npm audit)
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![Platform](https://img.shields.io/badge/platform-Web%20%7C%20iOS%20%7C%20Android-green.svg)
+![Status](https://img.shields.io/badge/status-Production%20Ready-brightgreen.svg)
 
 ---
 
-## 🚀 GitHub Repository Setup Guide
-
-### Step 1: Create GitHub Repository
-
-Use **Manus agent** to create the repository:
+## 🏗️ Architecture Overview
 
 ```
-Repository Name: healthpay-ledger-v2
-Description: HealthPay Ledger V2 - Event Sourcing + CQRS Architecture
-Visibility: Private
-Initialize: Do NOT add README, .gitignore, or license (we have our own)
-```
-
-### Step 2: Initial Commit & Push
-
-**Using Manus Agent:**
-
-1. **Initialize Git repository locally**
-```bash
-cd /path/to/sprint-0
-git init
-git branch -M main
-```
-
-2. **Add all files**
-```bash
-git add .
-```
-
-3. **Create initial commit**
-```bash
-git commit -m "Sprint 0: Initial project setup
-
-- Monorepo structure with Turborepo
-- Docker Compose for development environment
-- Database initialization scripts (PostgreSQL, ScyllaDB, ClickHouse)
-- GitHub Actions CI/CD pipeline
-- Monitoring setup (Prometheus, Grafana, Jaeger)
-- Environment configuration templates
-
-Deliverables:
-✅ Complete project structure
-✅ Docker infrastructure (8 services)
-✅ Database schemas
-✅ CI/CD workflows
-✅ Documentation"
-```
-
-4. **Link to remote repository**
-```bash
-git remote add origin https://github.com/healthflow/healthpay-ledger-v2.git
-```
-
-5. **Push to GitHub**
-```bash
-git push -u origin main
-```
-
-### Step 3: Create Development Branch
-
-```bash
-git checkout -b develop
-git push -u origin develop
-```
-
-### Step 4: Set Branch Protection Rules
-
-**Using GitHub UI (or Manus Agent):**
-
-**For `main` branch:**
-- ✅ Require pull request before merging
-- ✅ Require 2 approvals
-- ✅ Require status checks to pass (CI)
-- ✅ Require branches to be up to date
-- ✅ Include administrators
-
-**For `develop` branch:**
-- ✅ Require pull request before merging
-- ✅ Require 1 approval
-- ✅ Require status checks to pass (CI)
-
-### Step 5: Add GitHub Secrets
-
-**Required secrets for CI/CD:**
-
-```
-Settings → Secrets and variables → Actions → New repository secret
-```
-
-Add these secrets:
-- `CODECOV_TOKEN` (if using Codecov)
-- `DOCKER_USERNAME` (for Docker Hub)
-- `DOCKER_PASSWORD` (for Docker Hub)
-
----
-
-## 📝 Commit Message Convention
-
-For all future commits, use this format:
-
-```
-<type>(<scope>): <subject>
-
-<body>
-
-<footer>
-```
-
-**Types:**
-- `feat`: New feature
-- `fix`: Bug fix
-- `docs`: Documentation changes
-- `style`: Code style changes (formatting)
-- `refactor`: Code refactoring
-- `test`: Adding/updating tests
-- `chore`: Maintenance tasks
-- `ci`: CI/CD changes
-
-**Examples:**
-```
-feat(domain): Add Wallet aggregate implementation
-
-- Implement Wallet aggregate with event sourcing
-- Add command handlers for credit/debit operations
-- Include unit tests with 90% coverage
-
-Closes #123
-
----
-
-fix(projection): Resolve race condition in balance projection
-
-The balance projection was not handling concurrent updates correctly.
-Added optimistic locking using version numbers.
-
-Closes #456
-
----
-
-docs(readme): Update installation instructions
-
-Added troubleshooting section for common Docker issues.
+healthpay-wallet/
+├── apps/                          # Frontend applications
+│   ├── wallet-dashboard/          # Next.js User Wallet (Web)
+│   ├── admin-portal/              # Admin Dashboard (Static HTML)
+│   └── merchant-portal/           # Merchant Dashboard (Static HTML)
+├── mobile-app/                    # Flutter Mobile App (iOS/Android)
+├── services/                      # Backend microservices
+│   └── graphql-api/               # GraphQL API Server
+├── packages/                      # Shared packages
+├── database/                      # Database schemas & migrations
+├── deployment/                    # Deployment configurations
+├── infrastructure/                # Infrastructure as code
+├── monitoring/                    # Monitoring & alerting
+├── docs/                          # Documentation
+└── scripts/                       # Utility scripts
 ```
 
 ---
 
-## 🧪 Verification Steps
+## 📱 Applications
 
-After pushing to GitHub, verify:
+### 1. User Wallet Dashboard (Web)
+**Location:** `apps/wallet-dashboard/`  
+**Technology:** Next.js 14 + TypeScript + Tailwind CSS
 
-### 1. CI Pipeline Running
-- Go to: `Actions` tab on GitHub
-- Check that CI workflow is running
-- All jobs should pass (lint, typecheck, test, build)
+| Feature | Status |
+|---------|--------|
+| OTP Authentication (Cequens SMS) | ✅ |
+| Bilingual Support (Arabic/English) | ✅ |
+| RTL Layout Support | ✅ |
+| Wallet Balance & Dashboard | ✅ |
+| Money Transfer (P2P) | ✅ |
+| Wallet Top-Up | ✅ |
+| Bill Payments (9 categories) | ✅ |
+| Transaction History | ✅ |
+| Profile & Settings | ✅ |
+| Medical Card | ✅ |
 
-### 2. Repository Structure
-- Browse repository on GitHub
-- Verify all files are present
-- Check `.gitignore` is working (no `node_modules/`, `.env`, etc.)
+**Access URLs:**
+- Arabic: `http://your-domain:3006/ar/auth/login`
+- English: `http://your-domain:3006/en/auth/login`
 
-### 3. Branch Protection
-- Try to push directly to `main` (should fail)
-- Create a test PR to verify approval requirements
+### 2. Mobile App (iOS/Android)
+**Location:** `mobile-app/`  
+**Technology:** Flutter 3.16+ + Dart 3.2+ + BLoC Pattern
+
+| Feature | Status |
+|---------|--------|
+| Clean Architecture + BLoC | ✅ |
+| OTP Authentication (Cequens SMS) | ✅ |
+| Bilingual Support (Arabic/English) | ✅ |
+| Biometric Authentication | ✅ |
+| PIN Security | ✅ |
+| All Wallet Features | ✅ |
+| Offline Support | ✅ |
+
+### 3. Admin Portal
+**Location:** `apps/admin-portal/`  
+**Technology:** Static HTML + JavaScript
+
+| Feature | Status |
+|---------|--------|
+| User Management | ✅ |
+| Merchant Management | ✅ |
+| Transaction Monitoring | ✅ |
+| Cashout Requests | ✅ |
+| Verification Requests | ✅ |
+| Site Settings | ✅ |
+
+### 4. Merchant Portal
+**Location:** `apps/merchant-portal/`  
+**Technology:** Static HTML + JavaScript
+
+| Feature | Status |
+|---------|--------|
+| Dashboard & Analytics | ✅ |
+| Transaction History | ✅ |
+| Payment Requests | ✅ |
+| Customer Management | ✅ |
+| API Token Management | ✅ |
+| Notification Config | ✅ |
 
 ---
 
-## 💻 Local Development Setup
+## 🔧 Backend Services
+
+### GraphQL API
+**Location:** `services/graphql-api/`  
+**Technology:** Node.js + Apollo Server + Prisma + PostgreSQL
+
+**Key Features:**
+- Event Sourcing with CQRS pattern
+- Cequens SMS OTP Integration
+- JWT Authentication with refresh tokens
+- Real-time subscriptions
+- Rate limiting & security
+
+**API Endpoint:** `http://your-domain:4000/graphql`
+
+---
+
+## 🚀 Quick Start
+
+### Prerequisites
+- Node.js 18+
+- Docker & Docker Compose
+- Flutter SDK 3.16+ (for mobile app)
+- PostgreSQL 15+
+- Redis
 
 ### 1. Clone Repository
-
 ```bash
-git clone https://github.com/healthflow/healthpay-ledger-v2.git
-cd healthpay-ledger-v2
+git clone https://github.com/HealthFlowEgy/HealthPay-wallet-Re-engineered.git
+cd HealthPay-wallet-Re-engineered
 ```
 
-### 2. Install Dependencies
+### 2. Environment Setup
+```bash
+cp .env.example .env
+# Edit .env with your configuration
+```
 
+### 3. Start Infrastructure
+```bash
+docker-compose up -d
+```
+
+### 4. Install Dependencies
 ```bash
 npm install
 ```
 
-### 3. Setup Environment
+### 5. Start Services
+```bash
+# Start GraphQL API
+cd services/graphql-api && npm run dev
+
+# Start Wallet Dashboard
+cd apps/wallet-dashboard && npm run dev
+
+# Start Mobile App
+cd mobile-app && flutter run
+```
+
+---
+
+## 📋 Environment Variables
+
+```env
+# Database
+DATABASE_URL=postgresql://user:password@localhost:5432/healthpay
+
+# Redis
+REDIS_URL=redis://localhost:6379
+
+# JWT
+JWT_SECRET=your-secret-key
+JWT_REFRESH_SECRET=your-refresh-secret
+
+# Cequens SMS
+CEQUENS_API_URL=https://apis.cequens.com
+CEQUENS_API_KEY=your-api-key
+CEQUENS_SENDER_NAME=HealthPay
+
+# GraphQL
+GRAPHQL_PORT=4000
+GRAPHQL_PLAYGROUND=true
+```
+
+---
+
+## 🧪 Test Credentials
+
+### User Wallet
+| Field | Value |
+|-------|-------|
+| Phone Number | `01016464676` |
+| OTP | Sent via Cequens SMS |
+| Test Balance | 500.00 EGP |
+
+### Admin Portal
+| Field | Value |
+|-------|-------|
+| Email | `admin@healthpay.tech` |
+| Password | `admin123` |
+
+### Merchant Portal
+| Field | Value |
+|-------|-------|
+| Merchant ID | `MRC-000001` |
+| Password | `merchant123` |
+
+---
+
+## 📊 API Documentation
+
+### Authentication
+```graphql
+# Send OTP
+mutation SendOTP($phoneNumber: String!) {
+  sendOTP(phoneNumber: $phoneNumber) {
+    success
+    message
+  }
+}
+
+# Verify OTP
+mutation VerifyOTP($phoneNumber: String!, $code: String!) {
+  verifyOTP(phoneNumber: $phoneNumber, code: $code) {
+    success
+    token
+    refreshToken
+    user { id phoneNumber fullName }
+  }
+}
+```
+
+### Wallet Operations
+```graphql
+# Get Wallet Balance
+query GetWallet($userId: ID!) {
+  wallet(userId: $userId) {
+    id
+    balance
+    currency
+    dailyLimit
+  }
+}
+
+# Transfer Money
+mutation TransferMoney($input: TransferInput!) {
+  transferMoney(input: $input) {
+    success
+    transaction { id amount status }
+  }
+}
+
+# Top Up Wallet
+mutation TopUpWallet($input: TopUpInput!) {
+  topUpWallet(input: $input) {
+    success
+    transaction { id amount status }
+  }
+}
+```
+
+### Bill Payments
+```graphql
+# Inquire Bill
+mutation InquireBill($input: BillInquiryInput!) {
+  inquireBill(input: $input) {
+    success
+    billDetails { amount dueDate }
+  }
+}
+
+# Pay Bill
+mutation PayBill($input: PayBillInput!) {
+  payBill(input: $input) {
+    success
+    transaction { id amount status }
+  }
+}
+```
+
+---
+
+## 🔐 Security Features
+
+- **JWT Authentication** with access & refresh tokens
+- **PIN Security** with lockout after failed attempts
+- **Biometric Authentication** (Face ID / Fingerprint)
+- **Rate Limiting** on all API endpoints
+- **Input Validation** and sanitization
+- **HTTPS** enforcement in production
+- **Secure Token Storage** (flutter_secure_storage)
+
+---
+
+## 📱 Mobile App Build
+
+### Android APK
+```bash
+cd mobile-app
+flutter build apk --release
+```
+
+### iOS IPA
+```bash
+cd mobile-app
+flutter build ios --release
+```
+
+### Debug Mode
+```bash
+flutter run --debug
+```
+
+---
+
+## 🐳 Docker Deployment
 
 ```bash
-cp .env.example .env
-# Edit .env with your local settings
+# Build and start all services
+docker-compose up -d --build
+
+# View logs
+docker-compose logs -f
+
+# Stop services
+docker-compose down
 ```
 
-### 4. Start Docker Services
+---
 
-```bash
-make docker-up
-# or
-docker-compose up -d
-```
+## 📈 Monitoring
 
-Wait for all services to be healthy (about 2-3 minutes).
-
-### 5. Verify Services
-
-```bash
-make health
-```
-
-Expected output:
-```
-🏥 Checking service health...
-healthpay-redpanda: healthy
-healthpay-scylla: healthy
-healthpay-postgres: healthy
-healthpay-clickhouse: healthy
-healthpay-redis: healthy
-...
-```
-
-### 6. Access Services
-
+### Services
 | Service | URL | Credentials |
 |---------|-----|-------------|
-| Redpanda Console | http://localhost:8080 | - |
 | Grafana | http://localhost:3300 | admin/admin123 |
-| Jaeger | http://localhost:16686 | - |
 | Prometheus | http://localhost:9090 | - |
+| Jaeger | http://localhost:16686 | - |
 
 ---
 
-## 🔧 Useful Commands
+## 🤝 Contributing
 
-```bash
-# Development
-make install          # Install dependencies
-make dev             # Start all services in dev mode
-make build           # Build all packages
-make test            # Run tests
-make lint            # Run linter
-make format          # Format code
-
-# Docker
-make docker-up       # Start Docker services
-make docker-down     # Stop Docker services
-make docker-logs     # View logs
-make docker-ps       # Show running services
-
-# Database
-make db-shell-postgres    # PostgreSQL shell
-make db-shell-scylla      # ScyllaDB shell
-make db-shell-redis       # Redis CLI
-
-# Utilities
-make clean           # Clean build artifacts
-make verify          # Verify environment setup
-make health          # Check service health
-```
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit changes (`git commit -m 'Add amazing feature'`)
+4. Push to branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
 ---
 
-## 📊 Sprint 0 Metrics
+## 📄 License
 
-### Completed:
-- ✅ Repository structure (100%)
-- ✅ Docker infrastructure (100%)
-- ✅ Database schemas (100%)
-- ✅ CI/CD pipeline (100%)
-- ✅ Documentation (100%)
-
-### Next Sprint (Sprint 1):
-- 🎯 Domain models & event types
-- 🎯 Event store integration
-- 🎯 Command service implementation
-- 🎯 Basic unit tests
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ---
 
-## 🐛 Troubleshooting
+## 📞 Support
 
-### Issue: Docker services not starting
-
-```bash
-# Check Docker daemon
-docker info
-
-# Check service logs
-make docker-logs
-
-# Restart services
-make docker-down && make docker-up
-```
-
-### Issue: Port conflicts
-
-Edit `docker-compose.yml` to use different ports:
-```yaml
-services:
-  postgres:
-    ports:
-      - "15432:5432"  # Changed from 5432
-```
-
-### Issue: Database initialization failed
-
-```bash
-# Remove volumes and recreate
-make docker-down-volumes
-make docker-up
-
-# Check initialization logs
-docker-compose logs postgres
-docker-compose logs scylla
-docker-compose logs clickhouse
-```
+For support and inquiries:
+- **Email:** support@healthpay.tech
+- **Documentation:** [docs/](docs/)
 
 ---
 
-## 📚 References
+## 🏆 Credits
 
-- **Turborepo**: https://turbo.build/repo/docs
-- **Docker Compose**: https://docs.docker.com/compose/
-- **GitHub Actions**: https://docs.github.com/en/actions
-- **ScyllaDB**: https://docs.scylladb.com/
-- **TimescaleDB**: https://docs.timescale.com/
-- **ClickHouse**: https://clickhouse.com/docs/
+Developed by **HealthFlow Egypt** Team
 
 ---
 
-## ✅ Sprint 0 Checklist
-
-- [ ] GitHub repository created
-- [ ] Initial commit pushed to `main`
-- [ ] `develop` branch created
-- [ ] Branch protection rules configured
-- [ ] CI pipeline passing
-- [ ] Team members added to repository
-- [ ] Local development environment verified
-- [ ] Docker services running successfully
-- [ ] Documentation reviewed
-- [ ] Sprint 0 demo completed
-
----
-
-## 👥 Team Sign-off
-
-**Tech Lead:** [ ] Reviewed and approved  
-**Backend Team:** [ ] Environment setup complete  
-**Frontend Team:** [ ] Environment setup complete  
-**DevOps:** [ ] Infrastructure verified  
-**QA:** [ ] Testing environment ready  
-
----
-
-## 📅 Next Steps
-
-**Sprint 1 (Week 3-4): Core Event Sourcing**
-
-Will include:
-- Domain aggregates (Wallet, Payment, MedCard)
-- Event types & command types
-- Event store integration with Kafka
-- Command handlers
-- Unit tests (>80% coverage)
-
-**Estimated LOC:** ~2,000 lines  
-**Files:** ~15 TypeScript files  
-
----
-
-**Sprint 0 Complete! ✅**  
-**Date:** December 16, 2024  
-**Status:** Ready for Sprint 1
+**Last Updated:** January 3, 2026

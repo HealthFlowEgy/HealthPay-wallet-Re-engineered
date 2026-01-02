@@ -1,0 +1,259 @@
+// ============================================
+// HealthPay Prisma Schema
+// Sprint 5-7: Complete Database Models
+// ============================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// Core Models
+// ============================================
+
+model User {
+  id          String   @id @default(uuid())
+  phoneNumber String   @unique
+  name        String?
+  email       String?  @unique
+  pin         String?  // Hashed PIN
+  role        UserRole @default(USER)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  wallet        Wallet?
+  savedBillers  SavedBiller[]
+  billPayments  BillPayment[]
+  
+  @@map("users")
+}
+
+enum UserRole {
+  USER
+  MERCHANT
+  ADMIN
+}
+
+model Wallet {
+  id             String   @id @default(uuid())
+  balance        Float    @default(0)
+  pendingBalance Float    @default(0)
+  currency       String   @default("EGP")
+  userId         String   @unique
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+
+  transactionsFrom Transaction[] @relation("TransactionFrom")
+  transactionsTo   Transaction[] @relation("TransactionTo")
+
+  @@map("wallets")
+}
+
+model Merchant {
+  id           String         @id @default(uuid())
+  name         String
+  phone        String         @unique
+  email        String?        @unique
+  password     String         // Hashed
+  businessName String
+  businessType String?
+  status       MerchantStatus @default(PENDING)
+  walletId     String?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  paymentRequests PaymentRequest[]
+  customers       MerchantCustomer[]
+  transactions    Transaction[]
+
+  @@map("merchants")
+}
+
+enum MerchantStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+}
+
+// ============================================
+// Transaction Models
+// ============================================
+
+model Transaction {
+  id           String            @id @default(uuid())
+  type         TransactionType
+  amount       Float
+  fee          Float             @default(0)
+  net          Float
+  currency     String            @default("EGP")
+  status       TransactionStatus @default(PENDING)
+  description  String?
+  reference    String            @unique
+  fromWalletId String?
+  toWalletId   String?
+  merchantId   String?
+  customerId   String?
+  metadata     Json?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  fromWallet Wallet?           @relation("TransactionFrom", fields: [fromWalletId], references: [id])
+  toWallet   Wallet?           @relation("TransactionTo", fields: [toWalletId], references: [id])
+  merchant   Merchant?         @relation(fields: [merchantId], references: [id])
+  customer   MerchantCustomer? @relation(fields: [customerId], references: [id])
+
+  @@index([merchantId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("transactions")
+}
+
+enum TransactionType {
+  PAYMENT_REQUEST
+  QR
+  API
+  TRANSFER
+  BILL_PAYMENT
+  TOPUP
+  WITHDRAWAL
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+  CANCELLED
+}
+
+// ============================================
+// Payment Request Models (Sprint 5)
+// ============================================
+
+model PaymentRequest {
+  id            String               @id @default(uuid())
+  merchantId    String
+  amount        Float
+  description   String
+  status        PaymentRequestStatus @default(PENDING)
+  customerPhone String?
+  reference     String?
+  expiresAt     DateTime?
+  paidAt        DateTime?
+  paidByUserId  String?
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+
+  merchant Merchant @relation(fields: [merchantId], references: [id])
+
+  @@index([merchantId])
+  @@index([status])
+  @@map("payment_requests")
+}
+
+enum PaymentRequestStatus {
+  PENDING
+  PAID
+  EXPIRED
+  CANCELLED
+}
+
+// ============================================
+// Customer Models (Sprint 6)
+// ============================================
+
+model MerchantCustomer {
+  id               String    @id @default(uuid())
+  merchantId       String
+  name             String
+  phone            String
+  email            String?
+  totalSpent       Float     @default(0)
+  transactionCount Int       @default(0)
+  avgTransaction   Float     @default(0)
+  firstTransaction DateTime?
+  lastTransaction  DateTime?
+  tags             String[]  @default([])
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  merchant     Merchant      @relation(fields: [merchantId], references: [id])
+  transactions Transaction[]
+
+  @@unique([merchantId, phone])
+  @@index([merchantId])
+  @@map("merchant_customers")
+}
+
+// ============================================
+// Bill Payment Models (Sprint 7)
+// ============================================
+
+model BillCategory {
+  id      String   @id @default(uuid())
+  name    String
+  icon    String
+  order   Int      @default(0)
+  active  Boolean  @default(true)
+  billers Biller[]
+
+  @@map("bill_categories")
+}
+
+model Biller {
+  id            String @id @default(uuid())
+  categoryId    String
+  name          String
+  code          String @unique
+  accountFormat String // Regex pattern
+  accountHint   String
+  apiEndpoint   String?
+  active        Boolean @default(true)
+
+  category     BillCategory  @relation(fields: [categoryId], references: [id])
+  savedBillers SavedBiller[]
+  billPayments BillPayment[]
+
+  @@map("billers")
+}
+
+model SavedBiller {
+  id            String  @id @default(uuid())
+  userId        String
+  billerId      String
+  accountNumber String
+  nickname      String?
+  createdAt     DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id])
+  biller Biller @relation(fields: [billerId], references: [id])
+
+  @@unique([userId, billerId, accountNumber])
+  @@map("saved_billers")
+}
+
+model BillPayment {
+  id            String   @id @default(uuid())
+  userId        String
+  billerId      String
+  accountNumber String
+  amount        Float
+  reference     String   @unique
+  status        String   @default("completed")
+  billNumber    String?
+  subscriberName String?
+  paidAt        DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id])
+  biller Biller @relation(fields: [billerId], references: [id])
+
+  @@index([userId])
+  @@map("bill_payments")
+}

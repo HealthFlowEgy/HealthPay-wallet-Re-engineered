@@ -1,0 +1,35 @@
+=== HEALTHPAY DATABASE MIGRATION PACKAGE ===
+
+Contents:
+---------
+- DATABASE_CREDENTIALS.txt: All database credentials and connection details
+- RESTORE.sh: Automated restore script
+- MIGRATION_SUMMARY.txt: This file
+- [database_name]_full_dump.sql: SQL dumps for each database
+
+Databases Included:
+-------------------
+1. hpDB - Main application database
+2. hpLedger - Ledger database 1
+3. hpLedger2 - Ledger database 2
+4. hpLedger3 - Ledger database 3
+5. hpLedgerRenewed - Renewed ledger database
+6. healthpay - PostgreSQL database
+
+Total Size: Check archive size
+
+How to Use:
+-----------
+1. Extract this archive
+2. Review DATABASE_CREDENTIALS.txt for connection details
+3. Run RESTORE.sh or manually restore each database
+4. Verify data integrity after restore
+
+Notes:
+------
+- All dumps include schema and data
+- Dumps are compatible with MySQL 8.0+ and PostgreSQL 11+
+- Ensure sufficient disk space before restore
+- Test restore in non-production environment first
+
+Created: 2025-12-16

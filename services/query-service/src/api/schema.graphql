@@ -1,0 +1,380 @@
+# =============================================================================
+# SCALARS
+# =============================================================================
+scalar DateTime
+scalar JSON
+# =============================================================================
+# CORE TYPES
+# =============================================================================
+type User {
+  id: ID!
+  firstName: String!
+  lastName: String!
+  email: String!
+  phone: String!
+  wallets: [Wallet!]!
+}
+type Wallet {
+  id: ID!
+  userId: ID!
+  user: User!
+  walletType: WalletType!
+  balance: Float!
+  currency: String!
+  status: WalletStatus!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  transactions: [Transaction!]!
+}
+type Transaction {
+  id: ID!
+  walletId: ID!
+  type: TransactionType!
+  amount: Float!
+  currency: String!
+  description: String
+  status: TransactionStatus!
+  createdAt: DateTime!
+}
+type Payment {
+  id: ID!
+  walletId: ID!
+  amount: Float!
+  currency: String!
+  gateway: PaymentGateway!
+  method: PaymentMethod!
+  status: PaymentStatus!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+# =============================================================================
+# ENUMS
+# =============================================================================
+enum WalletType {
+  INDIVIDUAL
+  MERCHANT
+  ADMIN
+}
+enum WalletStatus {
+  ACTIVE
+  SUSPENDED
+  CLOSED
+}
+enum TransactionType {
+  CREDIT
+  DEBIT
+  TRANSFER
+  BILL_PAYMENT
+  PAYMENT_REQUEST
+}
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+enum PaymentGateway {
+  FAWRY
+  PAYMOB
+  BANK_TRANSFER
+}
+enum PaymentMethod {
+  CARD
+  WALLET
+  BANK_TRANSFER
+  CASH
+  FAWRY_REF
+}
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+# =============================================================================
+# INPUT TYPES
+# =============================================================================
+input CreateWalletInput {
+  userId: ID!
+  walletType: WalletType!
+  initialBalance: Float!
+  currency: String!
+  name: String
+  metadata: JSON
+}
+input InitiatePaymentInput {
+  walletId: ID!
+  amount: Float!
+  gateway: PaymentGateway!
+  method: PaymentMethod!
+  description: String
+}
+# =============================================================================
+# RESPONSE TYPES
+# =============================================================================
+type CommandResult {
+  success: Boolean!
+  message: String
+  data: JSON
+}
+type WalletCommandResult {
+  success: Boolean!
+  walletId: ID
+  message: String
+}
+type PaymentCommandResult {
+  success: Boolean!
+  paymentId: ID
+  message: String
+  redirectUrl: String
+}
+# =============================================================================
+# SPRINT 5: PAYMENT REQUESTS (MERCHANT)
+# =============================================================================
+enum PaymentRequestStatus {
+  PENDING
+  PAID
+  EXPIRED
+  CANCELLED
+}
+type PaymentRequest {
+  id: ID!
+  merchantId: ID!
+  amount: Float!
+  description: String
+  status: PaymentRequestStatus!
+  expiryDate: DateTime!
+  qrCodeUrl: String!
+  paymentLink: String!
+  createdAt: DateTime!
+  paidAt: DateTime
+}
+input CreatePaymentRequestInput {
+  amount: Float!
+  description: String
+  expiryHours: Int!
+}
+type PaymentRequestCommandResult {
+  success: Boolean!
+  paymentRequestId: ID
+  message: String
+}
+# =============================================================================
+# SPRINT 6: CUSTOMERS & DASHBOARD (MERCHANT)
+# =============================================================================
+type Customer {
+  id: ID!
+  merchantId: ID!
+  name: String!
+  phone: String
+  email: String
+  tags: [String!]!
+  totalSpent: Float!
+  transactionCount: Int!
+  lastTransactionDate: DateTime
+  createdAt: DateTime!
+}
+input CustomerFilter {
+  search: String
+  tag: String
+}
+type CustomerCommandResult {
+  success: Boolean!
+  customerId: ID
+  message: String
+}
+type MerchantDashboardAnalytics {
+  totalRevenue: Float!
+  todayRevenue: Float!
+  totalTransactions: Int!
+  todayTransactions: Int!
+  newCustomersToday: Int!
+  pendingRequests: Int!
+  revenueByTransactionType: [RevenueByTransactionType!]!
+}
+type RevenueByTransactionType {
+  type: String!
+  revenue: Float!
+}
+# =============================================================================
+# SPRINT 7: BILL PAYMENTS (USER)
+# =============================================================================
+type BillCategory {
+  id: ID!
+  name: String!
+  icon: String!
+  color: String!
+}
+type Biller {
+  id: ID!
+  name: String!
+  category: BillCategory!
+  fields: [BillerField!]!
+}
+type BillerField {
+  name: String!
+  label: String!
+  type: String!
+  required: Boolean!
+}
+type BillPaymentHistory {
+  id: ID!
+  billerName: String!
+  category: BillCategory!
+  amount: Float!
+  paidAt: DateTime!
+  reference: String!
+}
+type SavedBiller {
+  id: ID!
+  nickname: String!
+  billerName: String!
+  accountNumber: String!
+  category: BillCategory!
+}
+input BillInquiryInput {
+  billerId: ID!
+  accountNumber: String!
+  fields: String
+}
+type BillInquiryResult {
+  success: Boolean!
+  billId: ID
+  amountDue: Float
+  dueDate: DateTime
+  customerName: String
+  message: String
+}
+input BillPaymentInput {
+  billId: ID!
+  amount: Float!
+  pin: String!
+}
+type BillPaymentResult {
+  success: Boolean!
+  transactionId: ID
+  message: String
+}
+# ============================================================================
+# HEALTHPAY WALLET - MONEY TRANSFER & PIN MANAGEMENT
+# ============================================================================
+input SendMoneyInput {
+  recipientPhone: String!
+  amount: Float!
+  pin: String!
+  description: String
+}
+input SetPinInput {
+  pin: String!
+  confirmPin: String!
+}
+input VerifyPinInput {
+  pin: String!
+}
+type SendMoneyResult {
+  success: Boolean!
+  transactionId: String
+  message: String
+  transaction: Transaction
+  newBalance: Float
+}
+type PinResult {
+  success: Boolean!
+  message: String
+}
+type VerifyPinResult {
+  success: Boolean!
+  message: String
+  hasPinSet: Boolean
+}
+# ============================================================================
+# HEALTHPAY ADMIN & MERCHANT AUTHENTICATION
+# ============================================================================
+input AdminLoginInput {
+  email: String!
+  password: String!
+}
+input MerchantLoginInput {
+  merchantId: String!
+  password: String!
+}
+type AuthToken {
+  token: String!
+  refreshToken: String
+}
+# =============================================================================
+# QUERIES
+# =============================================================================
+type Query {
+  # User queries
+  user(id: ID!): User
+  # Wallet queries
+  wallet(id: ID!): Wallet
+  walletsByUser(userId: ID!): [Wallet!]!
+  # Transaction queries
+  transaction(id: ID!): Transaction
+  transactionsByWallet(walletId: ID!, limit: Int, offset: Int): [Transaction!]!
+  # Payment queries
+  payment(id: ID!): Payment
+  paymentsByWallet(walletId: ID!, limit: Int, offset: Int): [Payment!]!
+  # Analytics queries
+  walletAnalytics(walletId: ID!, startDate: DateTime, endDate: DateTime): WalletAnalytics!
+  # SPRINT 5-7 QUERIES
+  paymentRequest(id: ID!): PaymentRequest
+  paymentRequests(status: PaymentRequestStatus, limit: Int, offset: Int): [PaymentRequest!]!
+  customer(id: ID!): Customer
+  customers(filter: CustomerFilter, limit: Int, offset: Int): [Customer!]!
+  merchantDashboardAnalytics: MerchantDashboardAnalytics!
+  billCategories: [BillCategory!]!
+  billers(categoryId: ID!): [Biller!]!
+  billPaymentHistory(limit: Int, offset: Int): [BillPaymentHistory!]!
+  savedBillers: [SavedBiller!]!
+  hasPinSet: Boolean!
+}
+type WalletAnalytics {
+  totalCredits: Float!
+  totalDebits: Float!
+  transactionCount: Int!
+  averageTransaction: Float!
+  largestTransaction: Float!
+}
+# =============================================================================
+# MUTATIONS
+# =============================================================================
+type Mutation {
+  # Wallet mutations
+  createWallet(input: CreateWalletInput!): WalletCommandResult!
+  activateWallet(walletId: ID!): WalletCommandResult!
+  suspendWallet(walletId: ID!, reason: String!): WalletCommandResult!
+  closeWallet(walletId: ID!, reason: String!): WalletCommandResult!
+  creditWallet(walletId: ID!, amount: Float!, description: String): WalletCommandResult!
+  debitWallet(walletId: ID!, amount: Float!, description: String): WalletCommandResult!
+  # Payment mutations
+  initiatePayment(input: InitiatePaymentInput!): PaymentCommandResult!
+  completePayment(paymentId: ID!, gatewayTransactionId: String!): PaymentCommandResult!
+  cancelPayment(paymentId: ID!, reason: String!): PaymentCommandResult!
+  refundPayment(paymentId: ID!, amount: Float, reason: String!): PaymentCommandResult!
+  # SPRINT 5-7 MUTATIONS
+  createPaymentRequest(input: CreatePaymentRequestInput!): PaymentRequestCommandResult!
+  cancelPaymentRequest(id: ID!, reason: String!): PaymentRequestCommandResult!
+  updateCustomerTags(customerId: ID!, tags: [String!]): CustomerCommandResult!
+  inquireBill(input: BillInquiryInput!): BillInquiryResult!
+  payBill(input: BillPaymentInput!): BillPaymentResult!
+  saveBiller(input: BillInquiryInput!): SavedBiller!
+  deleteSavedBiller(id: ID!): Boolean!
+  sendMoney(input: SendMoneyInput!): SendMoneyResult!
+  setPin(input: SetPinInput!): PinResult!
+  verifyPin(input: VerifyPinInput!): VerifyPinResult!
+  adminLogin(input: AdminLoginInput!): AuthToken!
+  merchantLogin(input: MerchantLoginInput!): AuthToken!
+}
+# =============================================================================
+# SUBSCRIPTIONS
+# =============================================================================
+type Subscription {
+  # Wallet subscriptions
+  walletBalanceChanged(walletId: ID!): Wallet!
+  transactionCreated(walletId: ID!): Transaction!
+  # Payment subscriptions
+  paymentStatusChanged(paymentId: ID!): Payment!
+}

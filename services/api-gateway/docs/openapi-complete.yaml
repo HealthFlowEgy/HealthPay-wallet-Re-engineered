@@ -1,0 +1,1504 @@
+openapi: 3.0.3
+info:
+  title: HealthPay Ledger V2 API
+  version: 2.0.0
+  description: |
+    Event-sourced healthcare payment ledger system for Egypt's healthcare ecosystem.
+    
+    **Features:**
+    - Event Sourcing + CQRS architecture
+    - 10,000 TPS capability with <50ms latency
+    - Real-time balance updates via WebSocket
+    - Multi-currency wallets (EGP, USD, EUR)
+    - KYC verification
+    - Payment gateway integrations (Fawry, Paymob)
+    
+  contact:
+    name: HealthFlow API Support
+    email: api@healthflow.eg
+    url: https://healthflow.eg
+  license:
+    name: Proprietary
+    url: https://healthflow.eg/license
+
+servers:
+  - url: https://api.healthpay.eg/v2
+    description: Production server
+  - url: https://staging-api.healthpay.eg/v2
+    description: Staging server
+  - url: http://localhost:4000/v2
+    description: Development server
+
+tags:
+  - name: Authentication
+    description: User authentication and authorization
+  - name: Wallets
+    description: Wallet management operations
+  - name: Payments
+    description: Payment processing
+  - name: MedCards
+    description: Medical card management
+  - name: Transactions
+    description: Transaction history and queries
+  - name: Users
+    description: User management
+  - name: KYC
+    description: Know Your Customer verification
+  - name: WebSocket
+    description: Real-time updates
+  - name: Admin
+    description: Administrative operations
+
+security:
+  - BearerAuth: []
+  - ApiKeyAuth: []
+
+paths:
+  # ==================== Authentication ====================
+  /auth/request-otp:
+    post:
+      tags: [Authentication]
+      summary: Request OTP
+      description: Send OTP to user's phone number (SMS via Cequens)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phoneNumber]
+              properties:
+                phoneNumber:
+                  type: string
+                  pattern: '^(\+20|20|0)?1[0125]\d{8}$'
+                  example: '+201234567890'
+                language:
+                  type: string
+                  enum: [en, ar]
+                  default: ar
+      responses:
+        '200':
+          description: OTP sent successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: OTP sent to +201234567890
+                  expiresIn:
+                    type: integer
+                    description: OTP expiry time in seconds
+                    example: 300
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+
+  /auth/verify-otp:
+    post:
+      tags: [Authentication]
+      summary: Verify OTP
+      description: Verify OTP and create/authenticate user
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phoneNumber, otp]
+              properties:
+                phoneNumber:
+                  type: string
+                  example: '+201234567890'
+                otp:
+                  type: string
+                  pattern: '^\d{6}$'
+                  example: '123456'
+      responses:
+        '200':
+          description: OTP verified successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  token:
+                    type: string
+                    description: JWT access token
+                  refreshToken:
+                    type: string
+                  user:
+                    $ref: '#/components/schemas/User'
+                  expiresIn:
+                    type: integer
+                    example: 3600
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          description: Invalid OTP
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/refresh:
+    post:
+      tags: [Authentication]
+      summary: Refresh access token
+      description: Get new access token using refresh token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              properties:
+                refreshToken:
+                  type: string
+      responses:
+        '200':
+          description: Token refreshed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                  expiresIn:
+                    type: integer
+        '401':
+          description: Invalid refresh token
+
+  # ==================== Wallets ====================
+  /wallets:
+    post:
+      tags: [Wallets]
+      summary: Create wallet
+      description: Create new wallet for authenticated user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [currency]
+              properties:
+                currency:
+                  type: string
+                  enum: [EGP, USD, EUR]
+                  default: EGP
+                name:
+                  type: string
+                  example: My Personal Wallet
+      responses:
+        '201':
+          description: Wallet created
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+                format: uuid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Wallet'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    
+    get:
+      tags: [Wallets]
+      summary: List user wallets
+      description: Get all wallets for authenticated user
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+        - name: currency
+          in: query
+          schema:
+            type: string
+            enum: [EGP, USD, EUR]
+      responses:
+        '200':
+          description: Wallets retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Wallet'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+  /wallets/{walletId}:
+    get:
+      tags: [Wallets]
+      summary: Get wallet details
+      parameters:
+        - $ref: '#/components/parameters/WalletIdParam'
+      responses:
+        '200':
+          description: Wallet details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Wallet'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      tags: [Wallets]
+      summary: Update wallet
+      parameters:
+        - $ref: '#/components/parameters/WalletIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                status:
+                  type: string
+                  enum: [active, frozen, closed]
+      responses:
+        '200':
+          description: Wallet updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Wallet'
+
+  /wallets/{walletId}/balance:
+    get:
+      tags: [Wallets]
+      summary: Get real-time balance
+      description: Query ScyllaDB for instant balance retrieval (<10ms)
+      parameters:
+        - $ref: '#/components/parameters/WalletIdParam'
+      responses:
+        '200':
+          description: Current balance
+          headers:
+            X-Balance-As-Of:
+              description: Timestamp of balance calculation
+              schema:
+                type: string
+                format: date-time
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  walletId:
+                    type: string
+                    format: uuid
+                  balance:
+                    type: number
+                    format: double
+                    example: 1500.50
+                  currency:
+                    type: string
+                    example: EGP
+                  availableBalance:
+                    type: number
+                    description: Balance minus pending holds
+                    example: 1400.50
+                  pendingBalance:
+                    type: number
+                    description: Sum of pending transactions
+                    example: 100.00
+                  asOf:
+                    type: string
+                    format: date-time
+
+  # ==================== Payments ====================
+  /payments:
+    post:
+      tags: [Payments]
+      summary: Create payment
+      description: |
+        Initiate payment transaction. This creates a command that generates events:
+        - PaymentCreated
+        - WalletDebited (sender)
+        - WalletCredited (recipient)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentRequest'
+      responses:
+        '201':
+          description: Payment created
+          headers:
+            X-Idempotency-Key:
+              schema:
+                type: string
+                format: uuid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '402':
+          description: Insufficient funds
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    get:
+      tags: [Payments]
+      summary: List payments
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, completed, failed, cancelled]
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: Payments retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Payment'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+  /payments/{paymentId}:
+    get:
+      tags: [Payments]
+      summary: Get payment details
+      parameters:
+        - name: paymentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Payment details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+
+  /payments/{paymentId}/cancel:
+    post:
+      tags: [Payments]
+      summary: Cancel payment
+      description: Cancel pending payment (only if not yet completed)
+      parameters:
+        - name: paymentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason:
+                  type: string
+                  example: User requested cancellation
+      responses:
+        '200':
+          description: Payment cancelled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+        '400':
+          description: Cannot cancel payment
+
+  # ==================== Payment Gateways ====================
+  /payment-gateways/fawry/charge:
+    post:
+      tags: [Payments]
+      summary: Charge via Fawry
+      description: Process payment through Fawry gateway
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [walletId, amount, customerMobile]
+              properties:
+                walletId:
+                  type: string
+                  format: uuid
+                amount:
+                  type: number
+                  minimum: 10
+                  maximum: 50000
+                customerMobile:
+                  type: string
+                customerEmail:
+                  type: string
+                  format: email
+                description:
+                  type: string
+      responses:
+        '201':
+          description: Payment initiated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  paymentId:
+                    type: string
+                    format: uuid
+                  referenceNumber:
+                    type: string
+                    description: Fawry reference number
+                  expiryTime:
+                    type: string
+                    format: date-time
+
+  /payment-gateways/paymob/checkout:
+    post:
+      tags: [Payments]
+      summary: Create Paymob checkout
+      description: Generate Paymob payment link
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [walletId, amount]
+              properties:
+                walletId:
+                  type: string
+                  format: uuid
+                amount:
+                  type: number
+                billingData:
+                  $ref: '#/components/schemas/BillingData'
+      responses:
+        '201':
+          description: Checkout URL created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  paymentId:
+                    type: string
+                  checkoutUrl:
+                    type: string
+                    format: uri
+                  token:
+                    type: string
+
+  /webhooks/fawry:
+    post:
+      tags: [Payments]
+      summary: Fawry webhook
+      description: Callback endpoint for Fawry payment notifications
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FawryWebhook'
+      responses:
+        '200':
+          description: Webhook processed
+        '401':
+          description: Invalid signature
+
+  /webhooks/paymob:
+    post:
+      tags: [Payments]
+      summary: Paymob webhook
+      description: Callback endpoint for Paymob transaction notifications
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymobWebhook'
+      responses:
+        '200':
+          description: Webhook processed
+
+  # ==================== MedCards ====================
+  /medcards:
+    post:
+      tags: [MedCards]
+      summary: Create medical card
+      description: Register new medical card in the system
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [cardNumber, insuranceProvider]
+              properties:
+                cardNumber:
+                  type: string
+                  example: 'MC-123456789'
+                insuranceProvider:
+                  type: string
+                  example: 'Egyptian Healthcare Co.'
+                policyNumber:
+                  type: string
+                expiryDate:
+                  type: string
+                  format: date
+      responses:
+        '201':
+          description: Medical card created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MedCard'
+
+    get:
+      tags: [MedCards]
+      summary: List user medical cards
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, expired, suspended]
+      responses:
+        '200':
+          description: Medical cards retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MedCard'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+  /medcards/{cardId}:
+    get:
+      tags: [MedCards]
+      summary: Get medical card details
+      parameters:
+        - name: cardId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Medical card details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MedCard'
+
+    patch:
+      tags: [MedCards]
+      summary: Update medical card
+      parameters:
+        - name: cardId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [active, suspended]
+                expiryDate:
+                  type: string
+                  format: date
+      responses:
+        '200':
+          description: Medical card updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MedCard'
+
+  # ==================== Transactions ====================
+  /transactions:
+    get:
+      tags: [Transactions]
+      summary: Get transaction history
+      description: Query PostgreSQL transaction ledger with advanced filtering
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+        - name: walletId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [credit, debit, transfer, refund]
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: minAmount
+          in: query
+          schema:
+            type: number
+        - name: maxAmount
+          in: query
+          schema:
+            type: number
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [completed, pending, failed]
+      responses:
+        '200':
+          description: Transactions retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Transaction'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+                  summary:
+                    type: object
+                    properties:
+                      totalCredits:
+                        type: number
+                      totalDebits:
+                        type: number
+                      netAmount:
+                        type: number
+
+  /transactions/{transactionId}:
+    get:
+      tags: [Transactions]
+      summary: Get transaction details
+      parameters:
+        - name: transactionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Transaction details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+
+  /transactions/export:
+    post:
+      tags: [Transactions]
+      summary: Export transactions
+      description: Export transaction history as CSV or PDF
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [format]
+              properties:
+                format:
+                  type: string
+                  enum: [csv, pdf]
+                startDate:
+                  type: string
+                  format: date-time
+                endDate:
+                  type: string
+                  format: date-time
+                walletId:
+                  type: string
+                  format: uuid
+      responses:
+        '200':
+          description: Export generated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  downloadUrl:
+                    type: string
+                    format: uri
+                  expiresAt:
+                    type: string
+                    format: date-time
+
+  # ==================== Users ====================
+  /users/me:
+    get:
+      tags: [Users]
+      summary: Get current user profile
+      responses:
+        '200':
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+
+    patch:
+      tags: [Users]
+      summary: Update user profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                firstName:
+                  type: string
+                lastName:
+                  type: string
+                email:
+                  type: string
+                  format: email
+                dateOfBirth:
+                  type: string
+                  format: date
+      responses:
+        '200':
+          description: Profile updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+
+  /users/me/kyc:
+    get:
+      tags: [KYC]
+      summary: Get KYC status
+      responses:
+        '200':
+          description: KYC status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KYCStatus'
+
+    post:
+      tags: [KYC]
+      summary: Submit KYC documents
+      description: Upload identity documents for verification
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [nationalId, proofOfAddress]
+              properties:
+                nationalId:
+                  type: string
+                  format: binary
+                  description: Egyptian National ID image
+                proofOfAddress:
+                  type: string
+                  format: binary
+                  description: Utility bill or bank statement
+                selfie:
+                  type: string
+                  format: binary
+      responses:
+        '201':
+          description: KYC documents submitted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KYCStatus'
+
+  # ==================== Admin Operations ====================
+  /admin/users:
+    get:
+      tags: [Admin]
+      summary: List all users (Admin only)
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+        - name: kycStatus
+          in: query
+          schema:
+            type: string
+            enum: [pending, approved, rejected]
+        - name: search
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Users list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/User'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+        '403':
+          description: Forbidden - Admin access required
+
+  /admin/users/{userId}/suspend:
+    post:
+      tags: [Admin]
+      summary: Suspend user account
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason:
+                  type: string
+                duration:
+                  type: integer
+                  description: Suspension duration in days (null for permanent)
+      responses:
+        '200':
+          description: User suspended
+        '403':
+          description: Forbidden
+
+  /admin/analytics/dashboard:
+    get:
+      tags: [Admin]
+      summary: Get analytics dashboard data
+      description: Real-time metrics from ClickHouse analytics database
+      parameters:
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: Dashboard metrics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  totalUsers:
+                    type: integer
+                  activeWallets:
+                    type: integer
+                  totalTransactions:
+                    type: integer
+                  transactionVolume:
+                    type: number
+                  averageTransactionValue:
+                    type: number
+                  topSpenders:
+                    type: array
+                    items:
+                      type: object
+                  paymentMethodDistribution:
+                    type: object
+
+  # ==================== Health & Monitoring ====================
+  /health:
+    get:
+      tags: [Admin]
+      summary: Health check
+      description: Check service health and dependencies
+      security: []
+      responses:
+        '200':
+          description: Service healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [healthy, degraded, unhealthy]
+                  version:
+                    type: string
+                  uptime:
+                    type: integer
+                  components:
+                    type: object
+                    properties:
+                      database:
+                        type: string
+                        enum: [up, down]
+                      scylla:
+                        type: string
+                      kafka:
+                        type: string
+                      redis:
+                        type: string
+
+  /metrics:
+    get:
+      tags: [Admin]
+      summary: Prometheus metrics
+      description: Metrics endpoint for Prometheus scraping
+      security: []
+      responses:
+        '200':
+          description: Metrics in Prometheus format
+          content:
+            text/plain:
+              schema:
+                type: string
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token from /auth/verify-otp
+    
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API key for machine-to-machine communication
+
+  parameters:
+    WalletIdParam:
+      name: walletId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Wallet unique identifier
+
+    PageParam:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+      description: Page number
+
+    LimitParam:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+      description: Items per page
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        phoneNumber:
+          type: string
+          example: '+201234567890'
+        firstName:
+          type: string
+          example: Ahmed
+        lastName:
+          type: string
+          example: Mohamed
+        email:
+          type: string
+          format: email
+        nationalId:
+          type: string
+          pattern: '^\d{14}$'
+          description: Egyptian National ID (14 digits)
+        kycStatus:
+          type: string
+          enum: [pending, approved, rejected]
+        kycLevel:
+          type: integer
+          minimum: 0
+          maximum: 3
+          description: |
+            0: Not verified (limited transactions)
+            1: Phone verified (medium limits)
+            2: ID verified (high limits)
+            3: Full KYC (unlimited)
+        status:
+          type: string
+          enum: [active, suspended, closed]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    Wallet:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        name:
+          type: string
+          example: My Personal Wallet
+        currency:
+          type: string
+          enum: [EGP, USD, EUR]
+        balance:
+          type: number
+          format: double
+          example: 1500.50
+        availableBalance:
+          type: number
+        pendingBalance:
+          type: number
+        status:
+          type: string
+          enum: [active, frozen, closed]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    PaymentRequest:
+      type: object
+      required: [fromWalletId, amount, type]
+      properties:
+        fromWalletId:
+          type: string
+          format: uuid
+        toWalletId:
+          type: string
+          format: uuid
+          description: Required for transfer type
+        amount:
+          type: number
+          format: double
+          minimum: 0.01
+          example: 150.00
+        currency:
+          type: string
+          enum: [EGP, USD, EUR]
+          default: EGP
+        type:
+          type: string
+          enum: [transfer, topup, withdrawal, payment]
+        description:
+          type: string
+          maxLength: 500
+        metadata:
+          type: object
+          description: Additional data (e.g., prescription ID, invoice number)
+        idempotencyKey:
+          type: string
+          format: uuid
+          description: Prevent duplicate payments
+
+    Payment:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        fromWalletId:
+          type: string
+          format: uuid
+        toWalletId:
+          type: string
+          format: uuid
+        amount:
+          type: number
+        currency:
+          type: string
+        type:
+          type: string
+        status:
+          type: string
+          enum: [pending, completed, failed, cancelled]
+        description:
+          type: string
+        metadata:
+          type: object
+        createdAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+        failureReason:
+          type: string
+
+    Transaction:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        walletId:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum: [credit, debit]
+        amount:
+          type: number
+        currency:
+          type: string
+        balanceBefore:
+          type: number
+        balanceAfter:
+          type: number
+        description:
+          type: string
+        paymentId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [completed, pending, failed]
+        createdAt:
+          type: string
+          format: date-time
+
+    MedCard:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        cardNumber:
+          type: string
+          example: 'MC-123456789'
+        insuranceProvider:
+          type: string
+        policyNumber:
+          type: string
+        status:
+          type: string
+          enum: [active, expired, suspended]
+        expiryDate:
+          type: string
+          format: date
+        benefits:
+          type: object
+          properties:
+            coverageAmount:
+              type: number
+            copayPercentage:
+              type: number
+            annualLimit:
+              type: number
+        createdAt:
+          type: string
+          format: date-time
+
+    KYCStatus:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [pending, under_review, approved, rejected]
+        level:
+          type: integer
+        documentsRequired:
+          type: array
+          items:
+            type: string
+        documentsSubmitted:
+          type: array
+          items:
+            type: object
+            properties:
+              type:
+                type: string
+              status:
+                type: string
+              submittedAt:
+                type: string
+                format: date-time
+        rejectionReason:
+          type: string
+        approvedAt:
+          type: string
+          format: date-time
+
+    BillingData:
+      type: object
+      required: [firstName, lastName, phone, email]
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        phone:
+          type: string
+        email:
+          type: string
+          format: email
+        apartment:
+          type: string
+        floor:
+          type: string
+        street:
+          type: string
+        building:
+          type: string
+        city:
+          type: string
+        country:
+          type: string
+          default: EG
+
+    FawryWebhook:
+      type: object
+      properties:
+        referenceNumber:
+          type: string
+        merchantRefNumber:
+          type: string
+        orderStatus:
+          type: string
+          enum: [PAID, FAILED, EXPIRED]
+        paymentAmount:
+          type: number
+        paymentMethod:
+          type: string
+        messageSignature:
+          type: string
+          description: HMAC signature for verification
+
+    PaymobWebhook:
+      type: object
+      properties:
+        obj:
+          type: object
+          properties:
+            id:
+              type: integer
+            amount_cents:
+              type: integer
+            success:
+              type: boolean
+            is_auth:
+              type: boolean
+            order:
+              type: object
+            integration_id:
+              type: integer
+            merchant_order_id:
+              type: string
+            created_at:
+              type: string
+        hmac:
+          type: string
+          description: HMAC for webhook verification
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+          example: 1
+        limit:
+          type: integer
+          example: 20
+        total:
+          type: integer
+          example: 150
+        totalPages:
+          type: integer
+          example: 8
+
+    Error:
+      type: object
+      properties:
+        code:
+          type: string
+          example: WALLET_NOT_FOUND
+        message:
+          type: string
+          example: Wallet not found
+        details:
+          type: object
+        timestamp:
+          type: string
+          format: date-time
+        requestId:
+          type: string
+          format: uuid
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: VALIDATION_ERROR
+            message: Invalid input data
+            details:
+              phoneNumber: must match pattern ^(\+20|20|0)?1[0125]\d{8}$
+
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: UNAUTHORIZED
+            message: Invalid or expired token
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: NOT_FOUND
+            message: Resource not found
+
+    RateLimitExceeded:
+      description: Rate limit exceeded
+      headers:
+        X-RateLimit-Limit:
+          description: Request limit per window
+          schema:
+            type: integer
+            example: 100
+        X-RateLimit-Remaining:
+          description: Remaining requests in current window
+          schema:
+            type: integer
+            example: 0
+        X-RateLimit-Reset:
+          description: Time when limit resets (Unix timestamp)
+          schema:
+            type: integer
+            example: 1640995200
+        Retry-After:
+          description: Seconds to wait before retry
+          schema:
+            type: integer
+            example: 60
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: RATE_LIMIT_EXCEEDED
+            message: Too many requests. Please try again later.
+            retryAfter: 60

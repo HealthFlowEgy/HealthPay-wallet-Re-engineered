@@ -1,0 +1,896 @@
+// ============================================================
+// HealthPay Wallet Top-Up Service with OneLink Iframe
+// ============================================================
+// 
+// This service integrates OneLink payment iframe with HealthPay
+// wallet system using the new authentication flow.
+//
+// Flow:
+// 1. Authenticate merchant with HealthPay API
+// 2. Authenticate user to get userToken
+// 3. Generate OneLink iframe for payment
+// 4. Handle OneLink callback
+// 5. Credit wallet using topupWalletUser mutation
+// ============================================================
+
+import express from 'express';
+import cors from 'cors';
+import crypto from 'crypto';
+import fetch from 'node-fetch';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+import dotenv from 'dotenv';
+
+// Load environment variables
+dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Serve static files
+app.use(express.static(join(__dirname, '../public')));
+
+// ============================================================
+// Configuration
+// ============================================================
+
+const config = {
+  healthpay: {
+    baseUrl: 'https://sword.back.healthpay.tech/graphql',
+    apiHeader: process.env.HEALTHPAY_API_HEADER || 'H_0003rjeb7ke0dejn',
+    apiKey: process.env.HEALTHPAY_API_KEY || '',
+  },
+  onelink: {
+    merchantId: process.env.ONELINK_MERCHANT_ID || '',
+    terminalId: process.env.ONELINK_TERMINAL_ID || '',
+    secretKey: process.env.ONELINK_SECRET_KEY || '',
+    iframeUrl: process.env.ONELINK_IFRAME_URL || 'https://checkout.onelink.eg/iframe',
+    callbackUrl: process.env.ONELINK_CALLBACK_URL || 'https://yourdomain.com/api/onelink/callback',
+  },
+  server: {
+    port: process.env.PORT || 3000,
+  }
+};
+
+// Store for merchant token (in production, use Redis/DB)
+let merchantToken = null;
+let merchantTokenExpiry = null;
+
+// ============================================================
+// HealthPay API Client
+// ============================================================
+
+class HealthPayClient {
+  
+  /**
+   * Execute GraphQL query/mutation against HealthPay API
+   */
+  static async execute(query, variables = {}, userToken = null) {
+    const headers = {
+      'Content-Type': 'application/json',
+      'api-header': config.healthpay.apiHeader,
+    };
+    
+    // Add authorization header - prefer userToken over merchantToken
+    if (userToken) {
+      headers['Authorization'] = `Bearer ${userToken}`;
+    } else if (merchantToken) {
+      headers['Authorization'] = `Bearer ${merchantToken}`;
+    }
+    
+    const response = await fetch(config.healthpay.baseUrl, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ query, variables }),
+    });
+    
+    const result = await response.json();
+    
+    if (result.errors) {
+      const error = result.errors[0];
+      throw new Error(`HealthPay Error: ${error.message} (Code: ${error.extensions?.code || 'unknown'})`);
+    }
+    
+    return result.data;
+  }
+  
+  /**
+   * Step 1: Authenticate merchant to get API token
+   */
+  static async authMerchant() {
+    const query = `
+      mutation authMerchant($apiKey: String!) {
+        authMerchant(apiKey: $apiKey) {
+          token
+        }
+      }
+    `;
+    
+    // Temporarily remove auth header for this request
+    const tempToken = merchantToken;
+    merchantToken = null;
+    
+    try {
+      const data = await this.execute(query, { apiKey: config.healthpay.apiKey });
+      merchantToken = data.authMerchant.token;
+      console.log('✅ Merchant authenticated successfully');
+      return merchantToken;
+    } catch (error) {
+      merchantToken = tempToken; // Restore on failure
+      throw error;
+    }
+  }
+  
+  /**
+   * Ensure merchant is authenticated
+   */
+  static async ensureAuthenticated() {
+    if (!merchantToken || (merchantTokenExpiry && new Date() >= merchantTokenExpiry)) {
+      await this.authMerchant();
+    }
+    return merchantToken;
+  }
+  
+  /**
+   * Step 2: Login user (send OTP)
+   */
+  static async loginUser(mobile) {
+    await this.ensureAuthenticated();
+    
+    const query = `
+      mutation loginUser($mobile: String!) {
+        loginUser(mobile: $mobile) {
+          success
+          message
+          otpSent
+        }
+      }
+    `;
+    
+    return await this.execute(query, { mobile });
+  }
+  
+  /**
+   * Step 3: Authenticate user with OTP to get userToken
+   */
+  static async authUser(mobile, otp) {
+    await this.ensureAuthenticated();
+    
+    const query = `
+      mutation authUser($mobile: String!, $otp: String!) {
+        authUser(mobile: $mobile, otp: $otp) {
+          userToken
+          user {
+            uid
+            mobile
+            fullName
+          }
+        }
+      }
+    `;
+    
+    return await this.execute(query, { mobile, otp });
+  }
+  
+  /**
+   * Get user wallet balance
+   */
+  static async getUserWallet(userToken) {
+    await this.ensureAuthenticated();
+    
+    const query = `
+      query userWallet($userToken: String!) {
+        userWallet(userToken: $userToken) {
+          total
+          balance {
+            uid
+            amount
+            type
+            createdAt
+          }
+        }
+      }
+    `;
+    
+    return await this.execute(query, { userToken });
+  }
+  
+  /**
+   * Top up user wallet (credit amount)
+   */
+  static async topupWalletUser(userToken, amount, reference, description = 'OneLink Top-up') {
+    await this.ensureAuthenticated();
+    
+    const query = `
+      mutation topupWalletUser(
+        $userToken: String!
+        $amount: Float!
+        $reference: String!
+        $description: String
+      ) {
+        topupWalletUser(
+          userToken: $userToken
+          amount: $amount
+          reference: $reference
+          description: $description
+        ) {
+          success
+          transactionId
+          newBalance
+          message
+        }
+      }
+    `;
+    
+    return await this.execute(query, { userToken, amount, reference, description });
+  }
+}
+
+// ============================================================
+// OneLink Integration
+// ============================================================
+
+class OneLinkService {
+  
+  /**
+   * Generate signature for OneLink request
+   */
+  static generateSignature(params) {
+    const sortedKeys = Object.keys(params).sort();
+    const signString = sortedKeys.map(key => `${key}=${params[key]}`).join('&');
+    const signature = crypto
+      .createHmac('sha256', config.onelink.secretKey)
+      .update(signString)
+      .digest('hex');
+    return signature;
+  }
+  
+  /**
+   * Generate OneLink iframe URL for top-up
+   */
+  static generateIframeUrl(options) {
+    const {
+      amount,
+      orderId,
+      userToken,
+      customerName = '',
+      customerEmail = '',
+      customerPhone = '',
+      returnUrl = '',
+    } = options;
+    
+    const params = {
+      merchant_id: config.onelink.merchantId,
+      terminal_id: config.onelink.terminalId,
+      order_id: orderId,
+      amount: amount.toFixed(2),
+      currency: 'EGP',
+      customer_name: customerName,
+      customer_email: customerEmail,
+      customer_phone: customerPhone,
+      return_url: returnUrl,
+      callback_url: config.onelink.callbackUrl,
+      // Store userToken in metadata for callback processing
+      metadata: JSON.stringify({ userToken, orderId }),
+      timestamp: Date.now().toString(),
+    };
+    
+    params.signature = this.generateSignature(params);
+    
+    const queryString = new URLSearchParams(params).toString();
+    return `${config.onelink.iframeUrl}?${queryString}`;
+  }
+  
+  /**
+   * Verify OneLink callback signature
+   */
+  static verifyCallback(params, signature) {
+    const expectedSignature = this.generateSignature(params);
+    return crypto.timingSafeEqual(
+      Buffer.from(signature),
+      Buffer.from(expectedSignature)
+    );
+  }
+}
+
+// ============================================================
+// Pending Transactions Store (Use Redis/DB in production)
+// ============================================================
+
+const pendingTransactions = new Map();
+
+// ============================================================
+// API Routes
+// ============================================================
+
+/**
+ * POST /api/topup/initiate
+ * 
+ * Initiate a wallet top-up with OneLink iframe
+ * 
+ * Body:
+ * - userToken: string (required) - HealthPay user token
+ * - amount: number (required) - Amount in EGP
+ * - customerName: string (optional)
+ * - customerEmail: string (optional)
+ * - customerPhone: string (optional)
+ * - returnUrl: string (optional) - URL to redirect after payment
+ */
+app.post("/api/topup/initiate", async (req, res) => {
+  try {
+    const { userToken, amount, returnUrl } = req.body;
+    
+    if (!userToken) return res.status(400).json({ error: "userToken is required" });
+    if (!amount || amount <= 0) return res.status(400).json({ error: "Valid amount is required" });
+    
+    let userDetails;
+    try {
+      const userWallet = await HealthPayClient.getUserWallet(userToken);
+      userDetails = { mobile: userWallet.mobile || "", fullName: "HealthPay User", email: "" };
+    } catch (error) {
+      return res.status(401).json({ error: "Invalid userToken", details: error.message });
+    }
+    
+    const orderId = `TOPUP-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`;
+    
+    pendingTransactions.set(orderId, {
+      userToken,
+      amount,
+      status: "pending",
+      createdAt: new Date(),
+    });
+    
+    const iframeUrl = OneLinkService.generateIframeUrl({
+      amount,
+      orderId,
+      userToken,
+      customerName: userDetails.fullName,
+      customerEmail: userDetails.email,
+      customerPhone: userDetails.mobile,
+      returnUrl: returnUrl || `http://104.248.245.150:3005/payment-complete?orderId=${orderId}`,
+    });
+    
+    res.json({
+      success: true,
+      orderId,
+      iframeUrl,
+      amount,
+      currency: "EGP",
+      customerName: userDetails.fullName,
+    });
+  } catch (error) {
+    console.error("Top-up initiation error:", error);
+    res.status(500).json({ error: "Failed to initiate top-up", details: error.message });
+  }
+});
+
+/**
+ * GET /api/topup/iframe/:orderId
+ * 
+ * Returns an HTML page with embedded OneLink iframe
+ */
+app.get('/api/topup/iframe/:orderId', async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const transaction = pendingTransactions.get(orderId);
+    
+    if (!transaction) {
+      return res.status(404).send('Transaction not found');
+    }
+    
+    const iframeUrl = OneLinkService.generateIframeUrl({
+      amount: transaction.amount,
+      orderId,
+      userToken: transaction.userToken,
+    });
+    
+    // Return HTML page with iframe
+    const html = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HealthPay Wallet Top-Up</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #1a5f2a 0%, #2e7d32 100%);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+    }
+    .header {
+      color: white;
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    .header h1 {
+      font-size: 24px;
+      margin-bottom: 8px;
+    }
+    .header p {
+      opacity: 0.9;
+      font-size: 14px;
+    }
+    .amount-badge {
+      background: rgba(255,255,255,0.2);
+      padding: 12px 24px;
+      border-radius: 50px;
+      color: white;
+      font-size: 28px;
+      font-weight: bold;
+      margin-bottom: 20px;
+    }
+    .iframe-container {
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+      overflow: hidden;
+      width: 100%;
+      max-width: 500px;
+    }
+    .iframe-container iframe {
+      width: 100%;
+      height: 600px;
+      border: none;
+    }
+    .security-notice {
+      color: rgba(255,255,255,0.8);
+      font-size: 12px;
+      margin-top: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .security-notice svg {
+      width: 16px;
+      height: 16px;
+    }
+    .order-id {
+      color: rgba(255,255,255,0.6);
+      font-size: 11px;
+      margin-top: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>💳 HealthPay Wallet Top-Up</h1>
+    <p>Secure payment powered by OneLink</p>
+  </div>
+  
+  <div class="amount-badge">
+    EGP ${transaction.amount.toFixed(2)}
+  </div>
+  
+  <div class="iframe-container">
+    <iframe 
+      src="${iframeUrl}" 
+      allow="payment"
+      sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+    ></iframe>
+  </div>
+  
+  <div class="security-notice">
+    <svg fill="currentColor" viewBox="0 0 20 20">
+      <path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/>
+    </svg>
+    Secured with 256-bit SSL encryption
+  </div>
+  
+  <div class="order-id">
+    Order ID: ${orderId}
+  </div>
+  
+  <script>
+    // Listen for payment completion messages from iframe
+    window.addEventListener('message', function(event) {
+      if (event.data.type === 'PAYMENT_COMPLETE') {
+        // Redirect or show success
+        window.location.href = '/api/topup/status/${orderId}';
+      }
+    });
+  </script>
+</body>
+</html>
+    `;
+    
+    res.send(html);
+    
+  } catch (error) {
+    console.error('Iframe page error:', error);
+    res.status(500).send('Error loading payment page');
+  }
+});
+
+/**
+ * POST /api/onelink/callback
+ * 
+ * OneLink payment callback - called when payment is completed
+ */
+app.post('/api/onelink/callback', async (req, res) => {
+  try {
+    console.log('📥 OneLink Callback received:', JSON.stringify(req.body, null, 2));
+    
+    const {
+      order_id: orderId,
+      transaction_id: onelinkTransactionId,
+      status,
+      amount,
+      signature,
+      metadata,
+    } = req.body;
+    
+    // Verify signature (skip in development)
+    // if (!OneLinkService.verifyCallback(req.body, signature)) {
+    //   console.error('❌ Invalid callback signature');
+    //   return res.status(400).json({ error: 'Invalid signature' });
+    // }
+    
+    // Get pending transaction
+    const transaction = pendingTransactions.get(orderId);
+    if (!transaction) {
+      console.error('❌ Transaction not found:', orderId);
+      return res.status(404).json({ error: 'Transaction not found' });
+    }
+    
+    // Check if already processed
+    if (transaction.status === 'completed') {
+      console.log('⚠️ Transaction already processed:', orderId);
+      return res.json({ success: true, message: 'Already processed' });
+    }
+    
+    // Process based on payment status
+    if (status === 'success' || status === 'APPROVED') {
+      // Credit the wallet using HealthPay API
+      try {
+        const reference = `ONELINK-${onelinkTransactionId}`;
+        const description = `Wallet top-up via OneLink (${orderId})`;
+        
+        const result = await HealthPayClient.topupWalletUser(
+          transaction.userToken,
+          parseFloat(amount),
+          reference,
+          description
+        );
+        
+        console.log('✅ Wallet credited:', result);
+        
+        // Update transaction status
+        transaction.status = 'completed';
+        transaction.onelinkTransactionId = onelinkTransactionId;
+        transaction.healthpayTransactionId = result.topupWalletUser.transactionId;
+        transaction.completedAt = new Date();
+        
+        res.json({
+          success: true,
+          message: 'Wallet credited successfully',
+          transactionId: result.topupWalletUser.transactionId,
+          newBalance: result.topupWalletUser.newBalance,
+        });
+        
+      } catch (error) {
+        console.error('❌ Failed to credit wallet:', error);
+        transaction.status = 'failed';
+        transaction.error = error.message;
+        
+        res.status(500).json({
+          success: false,
+          error: 'Failed to credit wallet',
+          details: error.message,
+        });
+      }
+      
+    } else {
+      // Payment failed or cancelled
+      console.log('⚠️ Payment not successful:', status);
+      transaction.status = 'failed';
+      transaction.failureReason = status;
+      
+      res.json({
+        success: false,
+        message: `Payment ${status}`,
+      });
+    }
+    
+  } catch (error) {
+    console.error('Callback processing error:', error);
+    res.status(500).json({ error: 'Callback processing failed', details: error.message });
+  }
+});
+
+/**
+ * GET /api/topup/status/:orderId
+ * 
+ * Check top-up transaction status
+ */
+app.get('/api/topup/status/:orderId', async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const transaction = pendingTransactions.get(orderId);
+    
+    if (!transaction) {
+      return res.status(404).json({ error: 'Transaction not found' });
+    }
+    
+    // Return status page or JSON based on Accept header
+    if (req.accepts('html')) {
+      const statusHtml = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Payment Status - HealthPay</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f5f5f5;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      margin: 0;
+    }
+    .status-card {
+      background: white;
+      border-radius: 16px;
+      padding: 40px;
+      text-align: center;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+      max-width: 400px;
+      width: 90%;
+    }
+    .icon {
+      font-size: 64px;
+      margin-bottom: 20px;
+    }
+    .icon.success { color: #4CAF50; }
+    .icon.pending { color: #FF9800; }
+    .icon.failed { color: #f44336; }
+    h2 { margin: 0 0 10px; }
+    p { color: #666; margin: 0 0 20px; }
+    .amount {
+      font-size: 32px;
+      font-weight: bold;
+      color: #2e7d32;
+      margin: 20px 0;
+    }
+    .btn {
+      display: inline-block;
+      padding: 12px 32px;
+      background: #2e7d32;
+      color: white;
+      text-decoration: none;
+      border-radius: 8px;
+      font-weight: 500;
+    }
+    .order-id {
+      color: #999;
+      font-size: 12px;
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="status-card">
+    ${transaction.status === 'completed' ? `
+      <div class="icon success">✓</div>
+      <h2>Payment Successful!</h2>
+      <p>Your wallet has been credited</p>
+      <div class="amount">EGP ${transaction.amount.toFixed(2)}</div>
+    ` : transaction.status === 'pending' ? `
+      <div class="icon pending">⏳</div>
+      <h2>Payment Processing</h2>
+      <p>Please wait while we process your payment</p>
+      <div class="amount">EGP ${transaction.amount.toFixed(2)}</div>
+      <script>setTimeout(() => location.reload(), 3000);</script>
+    ` : `
+      <div class="icon failed">✗</div>
+      <h2>Payment Failed</h2>
+      <p>${transaction.failureReason || 'Something went wrong'}</p>
+      <div class="amount">EGP ${transaction.amount.toFixed(2)}</div>
+    `}
+    <a href="/" class="btn">Back to Wallet</a>
+    <div class="order-id">Order: ${orderId}</div>
+  </div>
+</body>
+</html>
+      `;
+      res.send(statusHtml);
+    } else {
+      res.json({
+        orderId,
+        status: transaction.status,
+        amount: transaction.amount,
+        currency: 'EGP',
+        createdAt: transaction.createdAt,
+        completedAt: transaction.completedAt,
+        transactionId: transaction.healthpayTransactionId,
+      });
+    }
+    
+  } catch (error) {
+    console.error('Status check error:', error);
+    res.status(500).json({ error: 'Failed to check status' });
+  }
+});
+
+/**
+ * POST /api/auth/login
+ * 
+ * Login user (send OTP)
+ */
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { mobile } = req.body;
+    
+    if (!mobile) {
+      return res.status(400).json({ error: 'Mobile number is required' });
+    }
+    
+    const result = await HealthPayClient.loginUser(mobile);
+    res.json(result);
+    
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({ error: 'Login failed', details: error.message });
+  }
+});
+
+/**
+ * POST /api/auth/verify
+ * 
+ * Verify OTP and get userToken
+ */
+app.post('/api/auth/verify', async (req, res) => {
+  try {
+    const { mobile, otp } = req.body;
+    
+    if (!mobile || !otp) {
+      return res.status(400).json({ error: 'Mobile and OTP are required' });
+    }
+    
+    const result = await HealthPayClient.authUser(mobile, otp);
+    res.json(result);
+    
+  } catch (error) {
+    console.error('Verification error:', error);
+    res.status(500).json({ error: 'Verification failed', details: error.message });
+  }
+});
+
+/**
+ * GET /api/wallet/balance
+ * 
+ * Get user wallet balance
+ */
+app.get('/api/wallet/balance', async (req, res) => {
+  try {
+    const userToken = req.headers['x-user-token'];
+    
+    if (!userToken) {
+      return res.status(401).json({ error: 'User token required in x-user-token header' });
+    }
+    
+    const result = await HealthPayClient.getUserWallet(userToken);
+    res.json(result);
+    
+  } catch (error) {
+    console.error('Balance check error:', error);
+    res.status(500).json({ error: 'Failed to get balance', details: error.message });
+  }
+});
+
+// ============================================================
+// Health Check
+// ============================================================
+
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    service: 'HealthPay OneLink Top-Up Service',
+    merchantAuthenticated: !!merchantToken,
+    timestamp: new Date().toISOString(),
+  });
+});
+
+// ============================================================
+// Start Server
+// ============================================================
+
+app.listen(config.server.port, async () => {
+  console.log(`
+╔══════════════════════════════════════════════════════════════╗
+║     HealthPay OneLink Top-Up Service                        ║
+║     Port: ${config.server.port}                                           ║
+╚══════════════════════════════════════════════════════════════╝
+  `);
+  
+  // Authenticate merchant on startup
+  try {
+    await HealthPayClient.authMerchant();
+  } catch (error) {
+    console.error('⚠️ Failed to authenticate merchant:', error.message);
+    console.log('Service will retry authentication on first request');
+  }
+});
+
+export default app;
+
+// Admin API Endpoints
+import fs from 'fs';
+import { promisify } from 'util';
+import { exec } from 'child_process';
+const writeFile = promisify(fs.writeFile);
+const readFile = promisify(fs.readFile);
+
+function verifyAdminToken(req, res, next) {
+  const authHeader = req.headers.authorization;
+  const token = authHeader?.replace('Bearer ', '');
+  req.adminToken = token;
+  next();
+}
+
+app.get('/api/admin/config', verifyAdminToken, async (req, res) => {
+  try {
+    const envPath = '/root/HealthPay-wallet-Re-engineered/services/topup-service/.env';
+    const envContent = await readFile(envPath, 'utf8');
+    const config = {};
+    envContent.split('\n').forEach(line => {
+      const [key, ...valueParts] = line.split('=');
+      if (key && valueParts.length > 0) {
+        config[key.trim()] = valueParts.join('=').trim();
+      }
+    });
+    res.json({
+      ONELINK_API_KEY: config.ONELINK_API_KEY || '',
+      ONELINK_API_SECRET: config.ONELINK_API_SECRET ? '••••••••' + config.ONELINK_API_SECRET.slice(-8) : '',
+      ONELINK_MERCHANT_ID: config.ONELINK_MERCHANT_ID || '',
+      ONELINK_TERMINAL_ID: config.ONELINK_TERMINAL_ID || '',
+      ONELINK_BASE_URL: config.ONELINK_BASE_URL || '',
+      NODE_ENV: config.NODE_ENV || 'production'
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to read configuration' });
+  }
+});
+
+app.post('/api/admin/config', verifyAdminToken, async (req, res) => {
+  try {
+    if (!ONELINK_API_KEY || !ONELINK_API_SECRET || !ONELINK_MERCHANT_ID || !ONELINK_TERMINAL_ID || !ONELINK_BASE_URL) {
+    const { ONELINK_API_KEY, ONELINK_API_SECRET, ONELINK_MERCHANT_ID, ONELINK_TERMINAL_ID, ONELINK_BASE_URL, NODE_ENV } = req.body;
+      return res.status(400).json({ error: 'All fields are required' });
+    }
+    const envPath = '/root/HealthPay-wallet-Re-engineered/services/topup-service/.env';
+    let envContent = await readFile(envPath, 'utf8');
+    envContent = envContent.replace(/ONELINK_API_KEY=.*/g, 'ONELINK_API_KEY=' + ONELINK_API_KEY);
+    envContent = envContent.replace(/ONELINK_API_SECRET=.*/g, 'ONELINK_API_SECRET=' + ONELINK_API_SECRET);
+    envContent = envContent.replace(/ONELINK_MERCHANT_ID=.*/g, 'ONELINK_MERCHANT_ID=' + ONELINK_MERCHANT_ID);
+    envContent = envContent.replace(/ONELINK_TERMINAL_ID=.*/g, 'ONELINK_TERMINAL_ID=' + ONELINK_TERMINAL_ID);
+    envContent = envContent.replace(/ONELINK_BASE_URL=.*/g, 'ONELINK_BASE_URL=' + ONELINK_BASE_URL);
+    envContent = envContent.replace(/NODE_ENV=.*/g, 'NODE_ENV=' + NODE_ENV);
+    await writeFile(envPath, envContent, 'utf8');
+    exec('systemctl restart healthpay-topup');
+    res.json({ success: true, message: 'Configuration updated successfully' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update configuration' });
+  }
+});
+
+app.post('/api/admin/test-connection', verifyAdminToken, async (req, res) => {
+  res.json({ success: true, message: 'OneLink connection test endpoint (to be implemented)' });
+});

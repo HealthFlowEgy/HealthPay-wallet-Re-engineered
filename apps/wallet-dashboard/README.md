@@ -1,161 +1,185 @@
 # HealthPay Wallet Dashboard
 
-Modern, responsive wallet dashboard built with Next.js 14, TypeScript, and Tailwind CSS.
+A modern, mobile-first digital wallet application built with Next.js 14, TypeScript, and Tailwind CSS.
 
-## Features
+## 🚀 Features
 
-✅ **Real-time Updates** - WebSocket integration for live balance and transaction updates  
-✅ **Multi-language** - Arabic and English with RTL support  
-✅ **Responsive Design** - Mobile-first, works on all devices  
-✅ **Dark Mode** - System preference detection  
-✅ **Type-safe** - Full TypeScript coverage  
-✅ **Performance** - Next.js 14 with App Router  
+- **Authentication**: Phone-based OTP login with PIN security
+- **Dashboard**: Wallet balance, quick actions, transaction history
+- **Transfers**: Send money to other users with PIN verification
+- **Top-Up**: Multiple payment methods (Card, Fawry, Vodafone Cash, InstaPay)
+- **Bill Payments**: 9+ categories, saved billers, payment history
+- **Medical Card**: Virtual card with QR code, beneficiaries management
+- **i18n**: Full Arabic and English support with RTL
+- **PWA Ready**: Installable on mobile devices
 
-## Quick Start
+## 🛠️ Tech Stack
 
-```bash
-# Install dependencies
-npm install
+| Technology | Version | Purpose |
+|------------|---------|---------|
+| Next.js | 14.x | React framework with App Router |
+| TypeScript | 5.x | Type safety |
+| Tailwind CSS | 3.x | Utility-first styling |
+| Apollo Client | 3.x | GraphQL data layer |
+| next-intl | 3.x | Internationalization |
 
-# Run development server
-npm run dev
-
-# Build for production
-npm run build
-
-# Start production server
-npm start
-```
-
-## Environment Variables
-
-Create `.env.local`:
-
-```env
-NEXT_PUBLIC_API_URL=http://localhost:8000
-NEXT_PUBLIC_WS_URL=ws://localhost:8080
-NEXT_PUBLIC_GRAPHQL_URL=http://localhost:4000/graphql
-```
-
-## Project Structure
+## 📁 Project Structure
 
 ```
 wallet-dashboard/
 ├── src/
 │   ├── app/
-│   │   ├── layout.tsx       # Root layout
-│   │   └── dashboard/
-│   │       └── page.tsx     # Dashboard page
-│   ├── components/          # React components
-│   ├── hooks/              # Custom hooks
-│   └── lib/                # Utilities
-├── public/                 # Static assets
-├── next.config.js         # Next.js config
-├── tailwind.config.js     # Tailwind config
-└── package.json
+│   │   └── [locale]/          # Locale-based routing
+│   │       ├── auth/          # Login, OTP, Register
+│   │       ├── dashboard/     # Main dashboard
+│   │       ├── transactions/  # Transaction history
+│   │       ├── transfer/      # Send money
+│   │       ├── topup/         # Wallet top-up
+│   │       ├── bills/         # Bill payments
+│   │       ├── profile/       # User profile
+│   │       ├── settings/      # App settings
+│   │       ├── notifications/ # Notifications
+│   │       ├── medcard/       # Medical card
+│   │       └── help/          # Help & FAQ
+│   ├── components/
+│   │   ├── ui/               # Reusable components
+│   │   ├── modals/           # Modal dialogs
+│   │   └── layouts/          # Layout components
+│   ├── lib/
+│   │   ├── graphql/          # Apollo client & queries
+│   │   ├── hooks/            # Custom React hooks
+│   │   └── utils/            # Utility functions
+│   ├── contexts/             # React contexts (Auth, Toast)
+│   └── types/                # TypeScript definitions
+├── public/
+│   └── locales/              # Translation files (ar.json, en.json)
+└── ...config files
 ```
 
-## Available Scripts
+## 🚀 Getting Started
 
-- `npm run dev` - Start development server
-- `npm run build` - Build for production
-- `npm start` - Start production server
-- `npm run lint` - Run ESLint
-- `npm run type-check` - Run TypeScript compiler
+### Prerequisites
 
-## Technology Stack
+- Node.js 18.x or 20.x LTS
+- npm or yarn
 
-- **Framework**: Next.js 14
-- **Language**: TypeScript
-- **Styling**: Tailwind CSS
-- **UI Components**: @healthpay/ui
-- **WebSocket**: @healthpay/websocket
-- **i18n**: @healthpay/i18n
-- **State Management**: React hooks
-- **API Client**: GraphQL + REST
-
-## Features
-
-### Dashboard
-- Wallet balance display
-- Recent transactions
-- Quick actions (Send, Receive, Top-up)
-- Transaction history
-- Real-time updates
-
-### Real-time Updates
-- Balance changes
-- New transactions
-- Payment notifications
-- WebSocket reconnection
-
-### Internationalization
-- Arabic (RTL)
-- English (LTR)
-- 200+ translation keys
-- Dynamic language switching
-
-## Development
-
-### Adding New Pages
-
-```tsx
-// app/new-page/page.tsx
-export default function NewPage() {
-  return <div>New Page</div>
-}
-```
-
-### Using Shared Components
-
-```tsx
-import { Button, Card } from '@healthpay/ui'
-
-export default function Example() {
-  return (
-    <Card>
-      <Button>Click me</Button>
-    </Card>
-  )
-}
-```
-
-### WebSocket Integration
-
-```tsx
-import { useWebSocket } from '@healthpay/websocket'
-
-export default function Component() {
-  const { connected, subscribe } = useWebSocket()
-  
-  useEffect(() => {
-    subscribe('wallet.credited', (data) => {
-      console.log('Wallet credited:', data)
-    })
-  }, [])
-}
-```
-
-## Deployment
-
-### Vercel (Recommended)
+### Installation
 
 ```bash
-npm install -g vercel
-vercel
+# Clone or extract the project
+cd wallet-dashboard
+
+# Install dependencies
+npm install
+
+# Copy environment file
+cp .env.example .env.local
+
+# Start development server
+npm run dev
 ```
 
-### Docker
+The app will be available at `http://localhost:3001`
+
+### Build for Production
 
 ```bash
-docker build -t healthpay-wallet-dashboard .
-docker run -p 3000:3000 healthpay-wallet-dashboard
+npm run build
+npm run start
 ```
 
-### Kubernetes
+## 🔧 Configuration
 
-See `deployment/kubernetes/` for manifests.
+### Environment Variables
 
-## License
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `NEXT_PUBLIC_API_URL` | GraphQL API endpoint | `http://104.248.245.150:4000/graphql` |
+| `NEXT_PUBLIC_WS_URL` | WebSocket endpoint | `ws://104.248.245.150:4001` |
 
-Proprietary - HealthPay
+### API Integration
+
+The app connects to the HealthPay GraphQL API. Available operations:
+
+**Authentication:**
+- `sendOTP(input: { phoneNumber })` - Send OTP to phone
+- `verifyOTP(input: { phoneNumber, otp })` - Verify OTP and login
+- `setPin(phoneNumber, pin)` - Set transaction PIN
+
+**Wallet:**
+- `wallet(id)` - Get wallet balance
+- `transactionsByWallet(walletId, limit)` - Get transactions
+- `topUpWallet(walletId, amount, method)` - Top up wallet
+- `transferMoney(input)` - Transfer to another user
+
+**Bills:**
+- `billCategories` - Get bill categories
+- `inquireBill(billerId, accountNumber)` - Inquire bill
+- `payBill(input)` - Pay bill
+
+## 📱 Deployment
+
+### PM2 (Recommended)
+
+```bash
+# Build
+npm run build
+
+# Start with PM2
+pm2 start npm --name "healthpay-wallet" -- start
+
+# Save PM2 configuration
+pm2 save
+```
+
+### Nginx Configuration
+
+```nginx
+server {
+    listen 80;
+    server_name wallet.healthpay.eg;
+
+    location / {
+        proxy_pass http://localhost:3001;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+    }
+}
+```
+
+## 🎨 Design System
+
+### Colors
+
+| Color | Hex | Usage |
+|-------|-----|-------|
+| Primary (Teal) | `#14B8A6` | Main actions, highlights |
+| Success (Green) | `#22C55E` | Credits, success states |
+| Warning (Amber) | `#F59E0B` | Pending, warnings |
+| Danger (Red) | `#EF4444` | Debits, errors |
+
+### Components
+
+- `Button` - Primary, Secondary, Outline, Ghost, Danger variants
+- `Card` - Default, Elevated, Gradient variants
+- `Input` - Text, Phone, OTP, Amount, PIN inputs
+- `Modal` - Standard, Confirm, Success, PIN modals
+- `Badge` - Status indicators
+- `Toast` - Notification popups
+
+## 📋 Test Credentials
+
+For development testing:
+
+| Field | Value |
+|-------|-------|
+| Phone | Any valid Egyptian format (01XXXXXXXXX) |
+| OTP | `123456` (dev mode) |
+| PIN | Any 4 digits |
+
+## 📄 License
+
+© 2026 HealthPay. All rights reserved.

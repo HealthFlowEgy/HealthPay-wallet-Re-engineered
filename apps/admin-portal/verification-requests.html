@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>طلبات التحقق - لوحة التحكم</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+        .spinner { border: 3px solid #f3f3f3; border-top: 3px solid #6366f1; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; display: inline-block; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        .tab-btn { transition: all 0.2s; }
+        .tab-btn.active { background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); color: white; }
+        
+        .table-row { transition: all 0.2s; }
+        .table-row:hover { background-color: #f9fafb; }
+        
+        /* Image viewer */
+        .image-viewer { backdrop-filter: blur(8px); }
+        .image-container { animation: zoomIn 0.3s ease-out; }
+        @keyframes zoomIn { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+
+<!-- Loading -->
+<div id="loading" class="fixed inset-0 bg-gray-100 flex items-center justify-center z-50">
+    <div class="text-center">
+        <div class="spinner mx-auto"></div>
+        <p class="mt-4 text-gray-600">جاري التحميل...</p>
+    </div>
+</div>
+
+<!-- Main Content -->
+<div id="main" class="hidden">
+    <!-- Header -->
+    <header class="bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg">
+        <div class="max-w-7xl mx-auto px-4 py-6">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-4">
+                    <a href="/admin/dashboard.html" class="text-white hover:text-indigo-200 transition-colors">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                        </svg>
+                    </a>
+                    <div>
+                        <h1 class="text-2xl font-bold">✅ طلبات التحقق</h1>
+                        <p class="text-indigo-200 text-sm">مراجعة وثائق KYC للمستخدمين</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-4">
+                    <span class="bg-yellow-400 text-yellow-900 px-3 py-1 rounded-full text-sm font-bold" id="pendingBadge">
+                        0 طلب معلق
+                    </span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 py-6">
+        <!-- Alert Messages -->
+        <div id="successAlert" class="hidden bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-xl mb-6 flex items-center gap-3">
+            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+            </svg>
+            <span id="successMessage">تمت العملية بنجاح</span>
+        </div>
+
+        <!-- Tabs -->
+        <div class="bg-white rounded-xl shadow-sm p-2 mb-6 inline-flex gap-2">
+            <button class="tab-btn px-6 py-3 rounded-lg font-medium active" data-tab="pending">
+                📋 قيد الانتظار
+                <span class="bg-yellow-100 text-yellow-700 text-xs px-2 py-1 rounded-full mr-2" id="pendingCount">0</span>
+            </button>
+            <button class="tab-btn px-6 py-3 rounded-lg font-medium text-gray-600" data-tab="history">
+                📜 السجل
+            </button>
+        </div>
+
+        <!-- Filters -->
+        <div class="bg-white rounded-xl shadow-sm p-4 mb-6">
+            <div class="flex flex-wrap gap-4 items-center">
+                <div class="flex-1 min-w-[200px]">
+                    <input type="text" id="searchInput" placeholder="بحث بالاسم أو الرقم القومي..."
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                </div>
+                <div class="hidden" id="historyFilters">
+                    <select id="statusFilter" class="px-4 py-2 border border-gray-300 rounded-lg">
+                        <option value="">كل الحالات</option>
+                        <option value="approved">مقبول</option>
+                        <option value="rejected">مرفوض</option>
+                    </select>
+                </div>
+                <div class="flex gap-2">
+                    <input type="date" id="dateFrom" class="px-4 py-2 border border-gray-300 rounded-lg">
+                    <input type="date" id="dateTo" class="px-4 py-2 border border-gray-300 rounded-lg">
+                </div>
+                <button onclick="applyFilters()" class="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition-colors">
+                    تطبيق
+                </button>
+            </div>
+        </div>
+
+        <!-- Bulk Actions (Pending Tab) -->
+        <div id="bulkActions" class="bg-indigo-50 rounded-xl p-4 mb-6 flex items-center justify-between">
+            <div class="flex items-center gap-4">
+                <label class="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" id="selectAll" onchange="toggleSelectAll()" class="w-5 h-5 rounded border-gray-300">
+                    <span class="text-gray-700">تحديد الكل</span>
+                </label>
+                <span class="text-gray-500" id="selectedCount">0 محدد</span>
+            </div>
+            <button onclick="markAllAsDone()" class="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                قبول المحدد
+            </button>
+        </div>
+
+        <!-- Pending Requests Table -->
+        <div id="pendingTab" class="bg-white rounded-xl shadow-lg overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="w-full">
+                    <thead class="bg-gray-50 border-b">
+                        <tr>
+                            <th class="px-4 py-3 text-right text-sm font-medium text-gray-500">
+                                <input type="checkbox" id="headerCheckbox" onchange="toggleSelectAll()" class="w-4 h-4 rounded">
+                            </th>
+                            <th class="px-4 py-3 text-right text-sm font-medium text-gray-500">المستخدم</th>
+                            <th class="px-4 py-3 text-right text-sm font-medium text-gray-500">الرقم القومي</th>
+                            <th class="px-4 py-3 text-right text-sm font-medium text-gray-500">المستندات</th>
+                            <th class="px-4 py-3 text-right text-sm font-medium text-gray-500">تاريخ الطلب</th>
+                            <th class="px-4 py-3 text-right text-sm font-medium text-gray-500">الإجراءات</th>
+                        </tr>
+                    </thead>
+                    <tbody id="pendingTableBody">
+                        <!-- Will be populated dynamically -->
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Empty State -->
+            <div id="emptyPending" class="hidden text-center py-16">
+                <span class="text-6xl">🎉</span>
+                <h3 class="text-xl font-bold text-gray-800 mt-4">لا توجد طلبات معلقة</h3>
+                <p class="text-gray-500 mt-2">تم مراجعة جميع طلبات التحقق</p>
+            </div>
+        </div>
+
+        <!-- History Table -->
+        <div id="historyTab" class="hidden bg-white rounded-xl shadow-lg overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="w-full">
+                    <thead class="bg-gray-50 border-b">
+                        <tr>
+                            <th class="px-4 py-3 text-right text-sm font-medium text-gray-500">المستخدم</th>
+                            <th class="px-4 py-3 text-right text-sm font-medium text-gray-500">الرقم القومي</th>
+                            <th class="px-4 py-3 text-right text-sm font-medium text-gray-500">الحالة</th>
+                            <th class="px-4 py-3 text-right text-sm font-medium text-gray-500">المعالج</th>
+                            <th class="px-4 py-3 text-right text-sm font-medium text-gray-500">تاريخ المعالجة</th>
+                            <th class="px-4 py-3 text-right text-sm font-medium text-gray-500">المستندات</th>
+                        </tr>
+                    </thead>
+                    <tbody id="historyTableBody">
+                        <!-- Will be populated dynamically -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Export Button -->
+            <div class="p-4 border-t bg-gray-50 flex justify-end">
+                <button onclick="exportToCSV()" class="bg-gray-600 text-white px-6 py-2 rounded-lg hover:bg-gray-700 transition-colors flex items-center gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                    </svg>
+                    تصدير CSV
+                </button>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- Image Viewer Modal -->
+<div id="imageViewer" class="hidden fixed inset-0 z-50 image-viewer bg-black/80 flex items-center justify-center">
+    <button onclick="closeImageViewer()" class="absolute top-4 right-4 text-white hover:text-gray-300">
+        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+    </button>
+    
+    <div class="image-container max-w-4xl max-h-[90vh] p-4">
+        <div class="bg-white rounded-2xl overflow-hidden shadow-2xl">
+            <div class="p-4 bg-gray-50 border-b flex items-center justify-between">
+                <h3 class="font-bold text-gray-800" id="imageTitle">صورة البطاقة</h3>
+                <div class="flex gap-2">
+                    <button onclick="prevImage()" class="p-2 hover:bg-gray-200 rounded-lg" id="prevBtn">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                        </svg>
+                    </button>
+                    <button onclick="nextImage()" class="p-2 hover:bg-gray-200 rounded-lg" id="nextBtn">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            <img id="viewerImage" src="" alt="Document" class="max-h-[70vh] w-auto mx-auto">
+        </div>
+    </div>
+</div>
+
+<!-- Reject Modal -->
+<div id="rejectModal" class="hidden fixed inset-0 z-50">
+    <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" onclick="closeRejectModal()"></div>
+    <div class="absolute inset-0 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl p-6 max-w-md w-full">
+            <div class="text-center mb-6">
+                <div class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <span class="text-3xl">❌</span>
+                </div>
+                <h3 class="text-lg font-bold text-gray-800">رفض طلب التحقق</h3>
+                <p class="text-gray-500 text-sm" id="rejectUserName">المستخدم: أحمد محمد</p>
+            </div>
+            
+            <div class="mb-6">
+                <label class="block text-gray-700 font-medium mb-2">سبب الرفض</label>
+                <select id="rejectReason" class="w-full px-4 py-3 border border-gray-300 rounded-xl mb-3">
+                    <option value="">اختر السبب...</option>
+                    <option value="blurry">الصورة غير واضحة</option>
+                    <option value="mismatch">البيانات غير متطابقة</option>
+                    <option value="expired">البطاقة منتهية الصلاحية</option>
+                    <option value="invalid">مستند غير صالح</option>
+                    <option value="other">سبب آخر</option>
+                </select>
+                <textarea id="rejectNote" rows="3" class="w-full px-4 py-3 border border-gray-300 rounded-xl"
+                    placeholder="ملاحظات إضافية (اختياري)..."></textarea>
+            </div>
+            
+            <div class="flex gap-3">
+                <button onclick="closeRejectModal()" class="flex-1 py-3 bg-gray-100 rounded-xl font-medium text-gray-600">
+                    إلغاء
+                </button>
+                <button onclick="confirmReject()" class="flex-1 py-3 bg-red-600 text-white rounded-xl font-medium">
+                    تأكيد الرفض
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Mock Data
+const mockPendingRequests = [
+    {
+        id: 'VR001',
+        userId: 'U001',
+        userName: 'أحمد محمد علي',
+        phone: '01012345678',
+        nationalId: '29901011234567',
+        frontImage: 'https://via.placeholder.com/400x250/10b981/white?text=Front+ID',
+        backImage: 'https://via.placeholder.com/400x250/3b82f6/white?text=Back+ID',
+        submittedAt: '2025-12-25T10:30:00'
+    },
+    {
+        id: 'VR002',
+        userId: 'U002',
+        userName: 'سارة أحمد محمود',
+        phone: '01098765432',
+        nationalId: '29505051234567',
+        frontImage: 'https://via.placeholder.com/400x250/10b981/white?text=Front+ID',
+        backImage: 'https://via.placeholder.com/400x250/3b82f6/white?text=Back+ID',
+        submittedAt: '2025-12-25T11:45:00'
+    },
+    {
+        id: 'VR003',
+        userId: 'U003',
+        userName: 'محمد خالد حسن',
+        phone: '01155544433',
+        nationalId: '28812121234567',
+        frontImage: 'https://via.placeholder.com/400x250/10b981/white?text=Front+ID',
+        backImage: 'https://via.placeholder.com/400x250/3b82f6/white?text=Back+ID',
+        submittedAt: '2025-12-26T09:15:00'
+    }
+];
+
+const mockHistoryRequests = [
+    {
+        id: 'VR100',
+        userId: 'U100',
+        userName: 'فاطمة علي',
+        nationalId: '29001011234567',
+        status: 'approved',
+        processedBy: 'Admin',
+        processedAt: '2025-12-24T14:30:00',
+        frontImage: 'https://via.placeholder.com/400x250/10b981/white?text=Front+ID',
+        backImage: 'https://via.placeholder.com/400x250/3b82f6/white?text=Back+ID'
+    },
+    {
+        id: 'VR101',
+        userId: 'U101',
+        userName: 'كريم حسن',
+        nationalId: '28505051234567',
+        status: 'rejected',
+        rejectReason: 'الصورة غير واضحة',
+        processedBy: 'Admin',
+        processedAt: '2025-12-23T16:45:00',
+        frontImage: 'https://via.placeholder.com/400x250/10b981/white?text=Front+ID',
+        backImage: 'https://via.placeholder.com/400x250/3b82f6/white?text=Back+ID'
+    }
+];
+
+// State
+let pendingRequests = [...mockPendingRequests];
+let historyRequests = [...mockHistoryRequests];
+let selectedRequests = new Set();
+let currentTab = 'pending';
+let currentImages = [];
+let currentImageIndex = 0;
+let rejectingRequestId = null;
+
+// Initialize
+function init() {
+    renderPendingTable();
+    renderHistoryTable();
+    updateCounts();
+    
+    document.getElementById('loading').classList.add('hidden');
+    document.getElementById('main').classList.remove('hidden');
+}
+
+// Render pending table
+function renderPendingTable() {
+    const tbody = document.getElementById('pendingTableBody');
+    
+    if (pendingRequests.length === 0) {
+        tbody.innerHTML = '';
+        document.getElementById('emptyPending').classList.remove('hidden');
+        document.getElementById('bulkActions').classList.add('hidden');
+        return;
+    }
+    
+    document.getElementById('emptyPending').classList.add('hidden');
+    document.getElementById('bulkActions').classList.remove('hidden');
+    
+    tbody.innerHTML = pendingRequests.map(req => `
+        <tr class="table-row border-b">
+            <td class="px-4 py-4">
+                <input type="checkbox" class="request-checkbox w-4 h-4 rounded" data-id="${req.id}" 
+                    ${selectedRequests.has(req.id) ? 'checked' : ''} onchange="toggleSelect('${req.id}')">
+            </td>
+            <td class="px-4 py-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600 font-bold">
+                        ${req.userName.charAt(0)}
+                    </div>
+                    <div>
+                        <p class="font-medium text-gray-800">${req.userName}</p>
+                        <p class="text-gray-500 text-sm">${req.phone}</p>
+                    </div>
+                </div>
+            </td>
+            <td class="px-4 py-4">
+                <code class="bg-gray-100 px-2 py-1 rounded text-sm">${req.nationalId}</code>
+            </td>
+            <td class="px-4 py-4">
+                <div class="flex gap-2">
+                    <button onclick="viewImages('${req.id}', 0)" class="text-blue-600 hover:text-blue-800 text-sm underline">
+                        الأمامية
+                    </button>
+                    <span class="text-gray-300">|</span>
+                    <button onclick="viewImages('${req.id}', 1)" class="text-blue-600 hover:text-blue-800 text-sm underline">
+                        الخلفية
+                    </button>
+                </div>
+            </td>
+            <td class="px-4 py-4 text-gray-500 text-sm">
+                ${formatDate(req.submittedAt)}
+            </td>
+            <td class="px-4 py-4">
+                <div class="flex gap-2">
+                    <button onclick="approveRequest('${req.id}')" class="bg-green-100 text-green-700 px-3 py-1 rounded-lg text-sm hover:bg-green-200 transition-colors">
+                        ✓ قبول
+                    </button>
+                    <button onclick="openRejectModal('${req.id}')" class="bg-red-100 text-red-700 px-3 py-1 rounded-lg text-sm hover:bg-red-200 transition-colors">
+                        ✗ رفض
+                    </button>
+                </div>
+            </td>
+        </tr>
+    `).join('');
+}
+
+// Render history table
+function renderHistoryTable() {
+    const tbody = document.getElementById('historyTableBody');
+    
+    tbody.innerHTML = historyRequests.map(req => `
+        <tr class="table-row border-b">
+            <td class="px-4 py-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center text-gray-600 font-bold">
+                        ${req.userName.charAt(0)}
+                    </div>
+                    <div>
+                        <p class="font-medium text-gray-800">${req.userName}</p>
+                    </div>
+                </div>
+            </td>
+            <td class="px-4 py-4">
+                <code class="bg-gray-100 px-2 py-1 rounded text-sm">${req.nationalId}</code>
+            </td>
+            <td class="px-4 py-4">
+                ${req.status === 'approved' 
+                    ? '<span class="bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm">✓ مقبول</span>'
+                    : `<span class="bg-red-100 text-red-700 px-3 py-1 rounded-full text-sm" title="${req.rejectReason || ''}">✗ مرفوض</span>`
+                }
+            </td>
+            <td class="px-4 py-4 text-gray-500 text-sm">${req.processedBy}</td>
+            <td class="px-4 py-4 text-gray-500 text-sm">${formatDate(req.processedAt)}</td>
+            <td class="px-4 py-4">
+                <button onclick="viewHistoryImages('${req.id}')" class="text-blue-600 hover:text-blue-800 text-sm underline">
+                    عرض
+                </button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+// Update counts
+function updateCounts() {
+    document.getElementById('pendingCount').textContent = pendingRequests.length;
+    document.getElementById('pendingBadge').textContent = `${pendingRequests.length} طلب معلق`;
+    document.getElementById('selectedCount').textContent = `${selectedRequests.size} محدد`;
+}
+
+// Format date
+function formatDate(dateString) {
+    return new Date(dateString).toLocaleDateString('ar-EG', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+}
+
+// Tab switching
+document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        this.classList.add('active');
+        
+        currentTab = this.dataset.tab;
+        
+        document.getElementById('pendingTab').classList.toggle('hidden', currentTab !== 'pending');
+        document.getElementById('historyTab').classList.toggle('hidden', currentTab !== 'history');
+        document.getElementById('bulkActions').classList.toggle('hidden', currentTab !== 'pending' || pendingRequests.length === 0);
+        document.getElementById('historyFilters').classList.toggle('hidden', currentTab !== 'history');
+    });
+});
+
+// Selection
+function toggleSelect(id) {
+    if (selectedRequests.has(id)) {
+        selectedRequests.delete(id);
+    } else {
+        selectedRequests.add(id);
+    }
+    updateCounts();
+}
+
+function toggleSelectAll() {
+    const checkboxes = document.querySelectorAll('.request-checkbox');
+    const allSelected = selectedRequests.size === pendingRequests.length;
+    
+    if (allSelected) {
+        selectedRequests.clear();
+    } else {
+        pendingRequests.forEach(r => selectedRequests.add(r.id));
+    }
+    
+    checkboxes.forEach(cb => cb.checked = !allSelected);
+    document.getElementById('selectAll').checked = !allSelected;
+    document.getElementById('headerCheckbox').checked = !allSelected;
+    updateCounts();
+}
+
+// Image viewer
+function viewImages(requestId, startIndex = 0) {
+    const request = pendingRequests.find(r => r.id === requestId);
+    if (!request) return;
+    
+    currentImages = [
+        { url: request.frontImage, title: 'الوجه الأمامي' },
+        { url: request.backImage, title: 'الوجه الخلفي' }
+    ];
+    currentImageIndex = startIndex;
+    showImage();
+    document.getElementById('imageViewer').classList.remove('hidden');
+}
+
+function viewHistoryImages(requestId) {
+    const request = historyRequests.find(r => r.id === requestId);
+    if (!request) return;
+    
+    currentImages = [
+        { url: request.frontImage, title: 'الوجه الأمامي' },
+        { url: request.backImage, title: 'الوجه الخلفي' }
+    ];
+    currentImageIndex = 0;
+    showImage();
+    document.getElementById('imageViewer').classList.remove('hidden');
+}
+
+function showImage() {
+    document.getElementById('viewerImage').src = currentImages[currentImageIndex].url;
+    document.getElementById('imageTitle').textContent = currentImages[currentImageIndex].title;
+}
+
+function prevImage() {
+    currentImageIndex = (currentImageIndex - 1 + currentImages.length) % currentImages.length;
+    showImage();
+}
+
+function nextImage() {
+    currentImageIndex = (currentImageIndex + 1) % currentImages.length;
+    showImage();
+}
+
+function closeImageViewer() {
+    document.getElementById('imageViewer').classList.add('hidden');
+}
+
+// Keyboard navigation for image viewer
+document.addEventListener('keydown', function(e) {
+    if (!document.getElementById('imageViewer').classList.contains('hidden')) {
+        if (e.key === 'ArrowLeft') nextImage();
+        if (e.key === 'ArrowRight') prevImage();
+        if (e.key === 'Escape') closeImageViewer();
+    }
+});
+
+// Approve request
+async function approveRequest(requestId) {
+    const request = pendingRequests.find(r => r.id === requestId);
+    if (!request) return;
+    
+    // In production, call API
+    // await fetch(`/api/admin/verification/${requestId}/approve`, { method: 'POST' });
+    
+    // Move to history
+    historyRequests.unshift({
+        ...request,
+        status: 'approved',
+        processedBy: 'Admin',
+        processedAt: new Date().toISOString()
+    });
+    
+    pendingRequests = pendingRequests.filter(r => r.id !== requestId);
+    selectedRequests.delete(requestId);
+    
+    renderPendingTable();
+    renderHistoryTable();
+    updateCounts();
+    showSuccess(`تم قبول طلب التحقق لـ ${request.userName}`);
+}
+
+// Mark all as done
+async function markAllAsDone() {
+    if (selectedRequests.size === 0) {
+        alert('يرجى تحديد طلب واحد على الأقل');
+        return;
+    }
+    
+    const count = selectedRequests.size;
+    
+    selectedRequests.forEach(id => {
+        const request = pendingRequests.find(r => r.id === id);
+        if (request) {
+            historyRequests.unshift({
+                ...request,
+                status: 'approved',
+                processedBy: 'Admin',
+                processedAt: new Date().toISOString()
+            });
+        }
+    });
+    
+    pendingRequests = pendingRequests.filter(r => !selectedRequests.has(r.id));
+    selectedRequests.clear();
+    
+    renderPendingTable();
+    renderHistoryTable();
+    updateCounts();
+    showSuccess(`تم قبول ${count} طلب بنجاح`);
+}
+
+// Reject modal
+function openRejectModal(requestId) {
+    rejectingRequestId = requestId;
+    const request = pendingRequests.find(r => r.id === requestId);
+    if (request) {
+        document.getElementById('rejectUserName').textContent = `المستخدم: ${request.userName}`;
+    }
+    document.getElementById('rejectModal').classList.remove('hidden');
+}
+
+function closeRejectModal() {
+    document.getElementById('rejectModal').classList.add('hidden');
+    document.getElementById('rejectReason').value = '';
+    document.getElementById('rejectNote').value = '';
+    rejectingRequestId = null;
+}
+
+async function confirmReject() {
+    const reason = document.getElementById('rejectReason').value;
+    if (!reason) {
+        alert('يرجى اختيار سبب الرفض');
+        return;
+    }
+    
+    const request = pendingRequests.find(r => r.id === rejectingRequestId);
+    if (!request) return;
+    
+    // In production, call API
+    // await fetch(`/api/admin/verification/${rejectingRequestId}/reject`, {
+    //     method: 'POST',
+    //     body: JSON.stringify({ reason, note: document.getElementById('rejectNote').value })
+    // });
+    
+    historyRequests.unshift({
+        ...request,
+        status: 'rejected',
+        rejectReason: reason,
+        processedBy: 'Admin',
+        processedAt: new Date().toISOString()
+    });
+    
+    pendingRequests = pendingRequests.filter(r => r.id !== rejectingRequestId);
+    
+    closeRejectModal();
+    renderPendingTable();
+    renderHistoryTable();
+    updateCounts();
+    showSuccess(`تم رفض طلب التحقق لـ ${request.userName}`);
+}
+
+// Export to CSV
+function exportToCSV() {
+    const headers = ['ID', 'اسم المستخدم', 'الرقم القومي', 'الحالة', 'المعالج', 'تاريخ المعالجة'];
+    const rows = historyRequests.map(r => [
+        r.id,
+        r.userName,
+        r.nationalId,
+        r.status === 'approved' ? 'مقبول' : 'مرفوض',
+        r.processedBy,
+        formatDate(r.processedAt)
+    ]);
+    
+    const csv = [headers, ...rows].map(row => row.join(',')).join('\n');
+    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `verification-history-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+// Filters
+function applyFilters() {
+    const search = document.getElementById('searchInput').value.toLowerCase();
+    const status = document.getElementById('statusFilter').value;
+    const dateFrom = document.getElementById('dateFrom').value;
+    const dateTo = document.getElementById('dateTo').value;
+    
+    if (currentTab === 'pending') {
+        pendingRequests = mockPendingRequests.filter(r => {
+            if (search && !r.userName.toLowerCase().includes(search) && !r.nationalId.includes(search)) return false;
+            if (dateFrom && new Date(r.submittedAt) < new Date(dateFrom)) return false;
+            if (dateTo && new Date(r.submittedAt) > new Date(dateTo + 'T23:59:59')) return false;
+            return true;
+        });
+        renderPendingTable();
+    } else {
+        historyRequests = mockHistoryRequests.filter(r => {
+            if (search && !r.userName.toLowerCase().includes(search) && !r.nationalId.includes(search)) return false;
+            if (status && r.status !== status) return false;
+            if (dateFrom && new Date(r.processedAt) < new Date(dateFrom)) return false;
+            if (dateTo && new Date(r.processedAt) > new Date(dateTo + 'T23:59:59')) return false;
+            return true;
+        });
+        renderHistoryTable();
+    }
+    
+    updateCounts();
+}
+
+// Show success message
+function showSuccess(message) {
+    document.getElementById('successMessage').textContent = message;
+    document.getElementById('successAlert').classList.remove('hidden');
+    setTimeout(() => document.getElementById('successAlert').classList.add('hidden'), 5000);
+}
+
+// Initialize on load
+init();
+</script>
+
+</body>
+</html>

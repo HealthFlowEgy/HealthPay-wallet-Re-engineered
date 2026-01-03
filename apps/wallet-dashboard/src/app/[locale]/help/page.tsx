@@ -1,213 +1,75 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
+import { Header } from '@/components/layouts';
+import { Card, Input } from '@/components/ui';
 
-// =============================================================================
-// FAQ DATA
-// =============================================================================
+const faqs = {
+  ar: [
+    { q: 'كيف أشحن رصيدي؟', a: 'يمكنك شحن رصيدك من خلال البطاقة البنكية، فوري، فودافون كاش، أو إنستاباي. اذهب إلى "شحن الرصيد" من الشاشة الرئيسية.' },
+    { q: 'كيف أرسل أموال لشخص آخر؟', a: 'اضغط على "تحويل" من الشاشة الرئيسية، أدخل رقم هاتف المستلم والمبلغ، ثم أكد التحويل برمز PIN.' },
+    { q: 'هل التحويلات مجانية؟', a: 'نعم، التحويلات بين مستخدمي HealthPay مجانية تماماً.' },
+    { q: 'كيف أغير رمز PIN؟', a: 'اذهب إلى الإعدادات > الأمان > تغيير رمز PIN.' },
+    { q: 'ماذا أفعل إذا نسيت رمز PIN؟', a: 'تواصل مع خدمة العملاء لإعادة تعيين رمز PIN الخاص بك.' },
+  ],
+  en: [
+    { q: 'How do I top up my wallet?', a: 'You can top up via bank card, Fawry, Vodafone Cash, or InstaPay. Go to "Top Up" from the home screen.' },
+    { q: 'How do I send money?', a: 'Tap "Transfer" from home screen, enter recipient phone and amount, then confirm with PIN.' },
+    { q: 'Are transfers free?', a: 'Yes, transfers between HealthPay users are completely free.' },
+    { q: 'How do I change my PIN?', a: 'Go to Settings > Security > Change PIN.' },
+    { q: 'What if I forgot my PIN?', a: 'Contact customer support to reset your PIN.' },
+  ],
+};
 
-const FAQ_ITEMS = [
-  {
-    id: '1',
-    question: 'كيف أشحن محفظتي؟',
-    answer: 'يمكنك شحن محفظتك من خلال عدة طرق: البطاقات البنكية (فيزا/ماستركارد)، فوري، فودافون كاش، أو انستاباي. اذهب إلى صفحة "شحن المحفظة" واختر الطريقة المناسبة لك.',
-  },
-  {
-    id: '2',
-    question: 'ما هي رسوم التحويل؟',
-    answer: 'التحويلات بين مستخدمي HealthPay مجانية تماماً. رسوم الشحن تختلف حسب طريقة الدفع: البطاقات 2.5%، فوري 5 ج.م، فودافون كاش 1%، انستاباي مجاني.',
-  },
-  {
-    id: '3',
-    question: 'كيف أوثق حسابي؟',
-    answer: 'لتوثيق حسابك، اذهب إلى الإعدادات > توثيق الحساب، ثم قم برفع صورة من بطاقة الرقم القومي وصورة شخصية. سيتم مراجعة طلبك خلال 24-48 ساعة.',
-  },
-  {
-    id: '4',
-    question: 'ما هي حدود المعاملات؟',
-    answer: 'الحساب غير الموثق: 5,000 ج.م يومياً و 20,000 ج.م شهرياً. الحساب الموثق: 50,000 ج.م يومياً و 200,000 ج.م شهرياً.',
-  },
-  {
-    id: '5',
-    question: 'كيف أسترد أموالي؟',
-    answer: 'يمكنك سحب أموالك إلى حسابك البنكي أو محفظة إلكترونية أخرى. اذهب إلى "سحب" واختر الطريقة المناسبة. يتم تنفيذ السحب خلال 1-3 أيام عمل.',
-  },
-  {
-    id: '6',
-    question: 'نسيت رمز PIN، ماذا أفعل؟',
-    answer: 'اذهب إلى الإعدادات > الأمان > إعادة تعيين رمز PIN. ستحتاج للتحقق من هويتك عبر رمز OTP يُرسل لرقم هاتفك المسجل.',
-  },
-];
+export default function HelpPage({ params }: { params: { locale: 'ar' | 'en' } }) {
+  const { locale } = params;
+  const router = useRouter();
+  const { isAuthenticated, loading: authLoading } = useAuth();
+  const [search, setSearch] = useState('');
+  const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
 
-const CONTACT_OPTIONS = [
-  { id: 'whatsapp', name: 'واتساب', nameEn: 'WhatsApp', icon: '💬', value: '+201234567890', color: 'bg-green-500' },
-  { id: 'phone', name: 'اتصل بنا', nameEn: 'Call Us', icon: '📞', value: '16XXX', color: 'bg-blue-500' },
-  { id: 'email', name: 'البريد الإلكتروني', nameEn: 'Email', icon: '📧', value: 'support@healthpay.eg', color: 'bg-purple-500' },
-];
-
-// =============================================================================
-// MAIN COMPONENT
-// =============================================================================
-
-export default function HelpPage() {
-  const [expandedFaq, setExpandedFaq] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-
-  const filteredFaqs = FAQ_ITEMS.filter(
-    faq => faq.question.includes(searchQuery) || faq.answer.includes(searchQuery)
-  );
-
-  const toggleFaq = (id: string) => {
-    setExpandedFaq(expandedFaq === id ? null : id);
+  const t = locale === 'ar' ? {
+    title: 'المساعدة', faq: 'الأسئلة الشائعة', search: 'ابحث عن مساعدة...', contactSupport: 'تواصل مع الدعم',
+    email: 'البريد الإلكتروني', phone: 'الهاتف', whatsapp: 'واتساب', workingHours: 'ساعات العمل', hours: '9 ص - 9 م، السبت - الخميس',
+  } : {
+    title: 'Help', faq: 'FAQ', search: 'Search for help...', contactSupport: 'Contact Support',
+    email: 'Email', phone: 'Phone', whatsapp: 'WhatsApp', workingHours: 'Working Hours', hours: '9 AM - 9 PM, Sat - Thu',
   };
 
+  useEffect(() => { if (!authLoading && !isAuthenticated) router.replace(`/${locale}/auth/login`); }, [authLoading, isAuthenticated, locale, router]);
+
+  const faqList = faqs[locale].filter(f => !search || f.q.toLowerCase().includes(search.toLowerCase()) || f.a.toLowerCase().includes(search.toLowerCase()));
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-teal-50 to-emerald-100" dir="rtl">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-teal-500 to-emerald-600 text-white p-6 rounded-b-3xl shadow-lg">
-        <div className="flex items-center justify-between mb-4">
-          <button onClick={() => window.history.back()} className="p-2 hover:bg-white/20 rounded-full">
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
-          </button>
-          <h1 className="text-xl font-bold">المساعدة والدعم</h1>
-          <div className="w-10" />
-        </div>
+    <div className="min-h-screen bg-gray-50">
+      <Header title={t.title} showBack backHref={`/${locale}/settings`} locale={locale} />
+      <div className="px-4 py-4 space-y-6">
+        <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t.search} icon={<span>🔍</span>} iconPosition="left" />
 
-        {/* Search */}
-        <div className="relative">
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="ابحث في الأسئلة الشائعة..."
-            className="w-full p-4 pr-12 rounded-xl text-gray-800 placeholder-gray-400"
-          />
-          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xl">🔍</span>
-        </div>
-      </div>
-
-      <div className="p-4 max-w-md mx-auto">
-        {/* Quick Contact */}
-        <div className="bg-white rounded-2xl p-6 shadow-lg mb-6">
-          <h2 className="text-lg font-bold text-gray-800 mb-4">تواصل معنا</h2>
-          <div className="grid grid-cols-3 gap-3">
-            {CONTACT_OPTIONS.map((option) => (
-              <button
-                key={option.id}
-                onClick={() => {
-                  if (option.id === 'whatsapp') {
-                    window.open(`https://wa.me/${option.value.replace('+', '')}`, '_blank');
-                  } else if (option.id === 'phone') {
-                    window.location.href = `tel:${option.value}`;
-                  } else if (option.id === 'email') {
-                    window.location.href = `mailto:${option.value}`;
-                  }
-                }}
-                className="flex flex-col items-center p-4 rounded-xl hover:bg-gray-50 transition-all"
-              >
-                <div className={`w-12 h-12 ${option.color} rounded-full flex items-center justify-center text-2xl text-white mb-2`}>
-                  {option.icon}
-                </div>
-                <span className="text-sm font-semibold text-gray-700">{option.name}</span>
-              </button>
+        <div>
+          <h2 className="text-lg font-bold text-gray-800 mb-3">{t.faq}</h2>
+          <div className="space-y-2">
+            {faqList.map((faq, i) => (
+              <Card key={i} onClick={() => setExpandedIndex(expandedIndex === i ? null : i)} className="cursor-pointer">
+                <div className="flex justify-between items-center"><p className="font-medium text-gray-800">{faq.q}</p><span className={`transition-transform ${expandedIndex === i ? 'rotate-180' : ''}`}>▼</span></div>
+                {expandedIndex === i && <p className="text-gray-600 mt-3 pt-3 border-t">{faq.a}</p>}
+              </Card>
             ))}
           </div>
         </div>
 
-        {/* FAQ Section */}
-        <div className="bg-white rounded-2xl p-6 shadow-lg mb-6">
-          <h2 className="text-lg font-bold text-gray-800 mb-4">الأسئلة الشائعة</h2>
-          
-          {filteredFaqs.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              <span className="text-4xl mb-2 block">🔍</span>
-              <p>لم يتم العثور على نتائج</p>
+        <div>
+          <h2 className="text-lg font-bold text-gray-800 mb-3">{t.contactSupport}</h2>
+          <Card>
+            <div className="space-y-4">
+              <a href="mailto:support@healthpay.eg" className="flex items-center gap-3 text-gray-700"><span className="text-xl">📧</span><div><p className="text-sm text-gray-500">{t.email}</p><p className="font-medium">support@healthpay.eg</p></div></a>
+              <a href="tel:+201234567890" className="flex items-center gap-3 text-gray-700"><span className="text-xl">📞</span><div><p className="text-sm text-gray-500">{t.phone}</p><p className="font-medium" dir="ltr">+20 123 456 7890</p></div></a>
+              <a href="https://wa.me/201234567890" className="flex items-center gap-3 text-gray-700"><span className="text-xl">💬</span><div><p className="text-sm text-gray-500">{t.whatsapp}</p><p className="font-medium" dir="ltr">+20 123 456 7890</p></div></a>
+              <div className="flex items-center gap-3 text-gray-700"><span className="text-xl">🕐</span><div><p className="text-sm text-gray-500">{t.workingHours}</p><p className="font-medium">{t.hours}</p></div></div>
             </div>
-          ) : (
-            <div className="space-y-3">
-              {filteredFaqs.map((faq) => (
-                <div
-                  key={faq.id}
-                  className="border border-gray-200 rounded-xl overflow-hidden"
-                >
-                  <button
-                    onClick={() => toggleFaq(faq.id)}
-                    className="w-full flex items-center justify-between p-4 text-right hover:bg-gray-50 transition-all"
-                  >
-                    <span className="font-semibold text-gray-800">{faq.question}</span>
-                    <svg
-                      className={`w-5 h-5 text-gray-400 transition-transform ${
-                        expandedFaq === faq.id ? 'rotate-180' : ''
-                      }`}
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </button>
-                  {expandedFaq === faq.id && (
-                    <div className="p-4 pt-0 text-gray-600 text-sm leading-relaxed">
-                      {faq.answer}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Useful Links */}
-        <div className="bg-white rounded-2xl p-6 shadow-lg mb-6">
-          <h2 className="text-lg font-bold text-gray-800 mb-4">روابط مفيدة</h2>
-          <div className="space-y-3">
-            <a
-              href="/terms"
-              className="flex items-center justify-between p-4 border border-gray-200 rounded-xl hover:border-teal-500 hover:bg-teal-50 transition-all"
-            >
-              <div className="flex items-center gap-3">
-                <span className="text-xl">📄</span>
-                <span className="font-semibold">الشروط والأحكام</span>
-              </div>
-              <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-            </a>
-            <a
-              href="/privacy"
-              className="flex items-center justify-between p-4 border border-gray-200 rounded-xl hover:border-teal-500 hover:bg-teal-50 transition-all"
-            >
-              <div className="flex items-center gap-3">
-                <span className="text-xl">🔒</span>
-                <span className="font-semibold">سياسة الخصوصية</span>
-              </div>
-              <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-            </a>
-            <a
-              href="https://healthpay.eg"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center justify-between p-4 border border-gray-200 rounded-xl hover:border-teal-500 hover:bg-teal-50 transition-all"
-            >
-              <div className="flex items-center gap-3">
-                <span className="text-xl">🌐</span>
-                <span className="font-semibold">موقعنا الإلكتروني</span>
-              </div>
-              <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-            </a>
-          </div>
-        </div>
-
-        {/* App Version */}
-        <div className="text-center text-gray-400 text-sm">
-          <p>HealthPay Wallet v2.0.0</p>
-          <p>© 2025 HealthPay. جميع الحقوق محفوظة</p>
+          </Card>
         </div>
       </div>
     </div>

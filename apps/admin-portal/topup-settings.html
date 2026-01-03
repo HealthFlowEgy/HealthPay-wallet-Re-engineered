@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>إعدادات بوابة الدفع - OneLink</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+        .spinner { border: 3px solid #f3f3f3; border-top: 3px solid #6366f1; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; display: inline-block; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+<!-- Loading -->
+<div id="loading" class="fixed inset-0 bg-gray-50 flex items-center justify-center z-50">
+    <div class="text-center"><div class="spinner mx-auto"></div><p class="mt-4 text-gray-600">جاري التحميل...</p></div>
+</div>
+
+<!-- No Auth -->
+<div id="noAuth" class="hidden fixed inset-0 bg-gray-50 flex items-center justify-center z-50">
+    <div class="text-center p-8">
+        <span class="text-6xl">🔒</span>
+        <h2 class="text-xl font-bold text-gray-800 mt-4">يرجى تسجيل الدخول كمسؤول</h2>
+        <a href="/admin/index.html" class="inline-block mt-4 bg-purple-600 text-white px-6 py-3 rounded-xl font-bold">تسجيل الدخول</a>
+    </div>
+</div>
+
+<!-- Main -->
+<div id="main" class="hidden">
+    <header class="bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg">
+        <div class="max-w-4xl mx-auto px-4 py-6">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-4">
+                    <a href="http://104.248.245.150:3002/dashboard" class="text-white hover:text-purple-200">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                        </svg>
+                    </a>
+                    <div>
+                        <h1 class="text-2xl font-bold">⚙️ إعدادات بوابة الدفع</h1>
+                        <p class="text-purple-200 text-sm">إدارة بيانات الاتصال ببوابة OneLink</p>
+                    </div>
+                </div>
+                <button onclick="logout()" class="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg text-sm">خروج</button>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-4xl mx-auto px-4 py-8">
+        <!-- Messages -->
+        <div id="error" class="hidden bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-6"></div>
+        <div id="success" class="hidden bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-xl mb-6"></div>
+
+        <!-- OneLink Credentials Form -->
+        <div class="bg-white rounded-xl shadow-lg p-6 mb-6">
+            <div class="flex items-center gap-3 mb-6">
+                <span class="text-3xl">🔑</span>
+                <div>
+                    <h2 class="text-xl font-bold text-gray-800">بيانات الاتصال بـ OneLink</h2>
+                    <p class="text-gray-600 text-sm">قم بتحديث بيانات API الخاصة ببوابة OneLink</p>
+                </div>
+            </div>
+
+            <form id="credentialsForm" class="space-y-4">
+                <!-- API Key -->
+                <div>
+                    <label class="block text-gray-700 font-medium mb-2">API Key</label>
+                    <input type="text" id="apiKey" required
+                           class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                           placeholder="39bce084-d027-4580-b062-47a8c7768e79">
+                    <p class="text-gray-500 text-sm mt-1">مفتاح API المقدم من OneLink</p>
+                </div>
+
+                <!-- API Secret -->
+                <div>
+                    <label class="block text-gray-700 font-medium mb-2">API Secret</label>
+                    <input type="password" id="apiSecret" required
+                           class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                           placeholder="••••••••••••••••••••">
+                    <p class="text-gray-500 text-sm mt-1">المفتاح السري للـ API</p>
+                    <button type="button" onclick="toggleSecret()" class="text-purple-600 text-sm mt-1">👁️ إظهار/إخفاء</button>
+                </div>
+
+                <!-- Merchant ID -->
+                <div>
+                    <label class="block text-gray-700 font-medium mb-2">Merchant ID</label>
+                    <input type="text" id="merchantId" required
+                           class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                           placeholder="TESTCLOUD_X9_EGP">
+                    <p class="text-gray-500 text-sm mt-1">معرف التاجر في OneLink</p>
+                </div>
+
+                <!-- Terminal ID -->
+                <div>
+                    <label class="block text-gray-700 font-medium mb-2">Terminal ID</label>
+                    <input type="text" id="terminalId" required
+                           class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                           placeholder="70473567">
+                    <p class="text-gray-500 text-sm mt-1">معرف نقطة البيع</p>
+                </div>
+
+                <!-- Base URL -->
+                <div>
+                    <label class="block text-gray-700 font-medium mb-2">Base URL</label>
+                    <input type="url" id="baseUrl" required
+                           class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                           placeholder="https://payment.beta.onelink2pay.co/t">
+                    <p class="text-gray-500 text-sm mt-1">عنوان API الخاص بـ OneLink</p>
+                </div>
+
+                <!-- Environment -->
+                <div>
+                    <label class="block text-gray-700 font-medium mb-2">البيئة</label>
+                    <select id="environment" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500">
+                        <option value="test">Test/Sandbox (تجريبي)</option>
+                        <option value="production">Production (إنتاج)</option>
+                    </select>
+                </div>
+
+                <!-- Save Button -->
+                <div class="flex gap-3 pt-4">
+                    <button type="submit" id="saveBtn"
+                            class="flex-1 bg-gradient-to-r from-purple-600 to-indigo-600 text-white py-3 rounded-lg font-bold hover:from-purple-700 hover:to-indigo-700 disabled:opacity-50">
+                        💾 حفظ التغييرات
+                    </button>
+                    <button type="button" onclick="testConnection()" id="testBtn"
+                            class="px-6 bg-green-600 text-white py-3 rounded-lg font-bold hover:bg-green-700 disabled:opacity-50">
+                        🔌 اختبار الاتصال
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Current Configuration -->
+        <div class="bg-white rounded-xl shadow-lg p-6">
+            <div class="flex items-center gap-3 mb-4">
+                <span class="text-3xl">📊</span>
+                <h2 class="text-xl font-bold text-gray-800">الإعدادات الحالية</h2>
+            </div>
+            <div class="bg-gray-50 rounded-lg p-4 font-mono text-sm" dir="ltr">
+                <pre id="currentConfig" class="text-gray-700">Loading...</pre>
+            </div>
+            <p class="text-gray-500 text-sm mt-2">💡 يتم تحديث هذه البيانات تلقائياً من ملف .env على الخادم</p>
+        </div>
+    </main>
+</div>
+
+<script>
+const TOPUP_API = 'http://104.248.245.150:3005/api';
+let adminToken = null;
+
+function showError(msg) {
+    document.getElementById('error').textContent = msg;
+    document.getElementById('error').classList.remove('hidden');
+    document.getElementById('success').classList.add('hidden');
+}
+
+function showSuccess(msg) {
+    document.getElementById('success').textContent = msg;
+    document.getElementById('success').classList.remove('hidden');
+    document.getElementById('error').classList.add('hidden');
+}
+
+function toggleSecret() {
+    const input = document.getElementById('apiSecret');
+    input.type = input.type === 'password' ? 'text' : 'password';
+}
+
+async function loadCurrentConfig() {
+    try {
+        const response = await fetch(`${TOPUP_API}/admin/config`, {
+            headers: { 'Authorization': `Bearer ${adminToken}` }
+        });
+        
+        if (!response.ok) throw new Error('Failed to load config');
+        
+        const config = await response.json();
+        
+        // Display current config
+        document.getElementById('currentConfig').textContent = JSON.stringify(config, null, 2);
+        
+        // Fill form with current values
+        document.getElementById('apiKey').value = config.ONELINK_API_KEY || '';
+        document.getElementById('apiSecret').value = config.ONELINK_API_SECRET || '';
+        document.getElementById('merchantId').value = config.ONELINK_MERCHANT_ID || '';
+        document.getElementById('terminalId').value = config.ONELINK_TERMINAL_ID || '';
+        document.getElementById('baseUrl').value = config.ONELINK_BASE_URL || '';
+        document.getElementById('environment').value = config.NODE_ENV === 'production' ? 'production' : 'test';
+    } catch (e) {
+        document.getElementById('currentConfig').textContent = 'Error loading configuration';
+        console.error(e);
+    }
+}
+
+async function testConnection() {
+    const btn = document.getElementById('testBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner inline-block"></span> جاري الاختبار...';
+    
+    try {
+        const response = await fetch(`${TOPUP_API}/admin/test-connection`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${adminToken}`
+            }
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showSuccess('✅ تم الاتصال بنجاح! بوابة OneLink تعمل بشكل صحيح');
+        } else {
+            showError('❌ فشل الاتصال: ' + (result.error || 'خطأ غير معروف'));
+        }
+    } catch (e) {
+        showError('❌ خطأ في الاتصال بالخادم');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '🔌 اختبار الاتصال';
+    }
+}
+
+document.getElementById('credentialsForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const btn = document.getElementById('saveBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner inline-block"></span> جاري الحفظ...';
+    
+    const credentials = {
+        ONELINK_API_KEY: document.getElementById('apiKey').value,
+        ONELINK_API_SECRET: document.getElementById('apiSecret').value,
+        ONELINK_MERCHANT_ID: document.getElementById('merchantId').value,
+        ONELINK_TERMINAL_ID: document.getElementById('terminalId').value,
+        ONELINK_BASE_URL: document.getElementById('baseUrl').value,
+        NODE_ENV: document.getElementById('environment').value
+    };
+    
+    try {
+        const response = await fetch(`${TOPUP_API}/admin/config`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${adminToken}`
+            },
+            body: JSON.stringify(credentials)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showSuccess('✅ تم حفظ الإعدادات بنجاح!');
+            await loadCurrentConfig();
+        } else {
+            showError('❌ فشل حفظ الإعدادات: ' + (result.error || 'خطأ غير معروف'));
+        }
+    } catch (e) {
+        showError('❌ خطأ في الاتصال بالخادم');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '💾 حفظ التغييرات';
+    }
+});
+
+function logout() {
+    localStorage.removeItem('admin_token');
+    window.location.href = '/admin/index.html';
+}
+
+async function init() {
+    adminToken = localStorage.getItem('admin_token');
+    
+    if (!adminToken) {
+        document.getElementById('loading').classList.add('hidden');
+        document.getElementById('noAuth').classList.remove('hidden');
+        return;
+    }
+    
+    await loadCurrentConfig();
+    
+    document.getElementById('loading').classList.add('hidden');
+    document.getElementById('main').classList.remove('hidden');
+}
+
+init();
+</script>
+
+</body>
+</html>

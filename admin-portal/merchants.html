@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>إدارة التجار - HealthPay Admin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+        .sidebar { width: 260px; }
+        .main-content { margin-right: 260px; }
+        @media (max-width: 1024px) {
+            .sidebar { transform: translateX(100%); position: fixed; z-index: 50; }
+            .sidebar.open { transform: translateX(0); }
+            .main-content { margin-right: 0; }
+        }
+        .nav-item:hover { background: rgba(245, 158, 11, 0.1); }
+        .nav-item.active { background: rgba(245, 158, 11, 0.15); border-right: 3px solid #f59e0b; }
+        .modal-overlay { background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); }
+        .status-active { background: #d1fae5; color: #065f46; }
+        .status-pending { background: #fef3c7; color: #92400e; }
+        .status-suspended { background: #fee2e2; color: #991b1b; }
+    </style>
+</head>
+<body class="bg-gray-100">
+
+<!-- Sidebar -->
+<aside class="sidebar fixed top-0 right-0 h-full bg-white shadow-lg transition-transform duration-300">
+    <div class="p-6 border-b">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl flex items-center justify-center text-white font-bold">HP</div>
+            <div>
+                <h1 class="font-bold text-gray-800">HealthPay</h1>
+                <p class="text-xs text-gray-500">لوحة الإدارة</p>
+            </div>
+        </div>
+    </div>
+    
+    <nav class="p-4">
+        <p class="text-xs text-gray-400 mb-3 px-3">القائمة الرئيسية</p>
+        <a href="dashboard.html" class="nav-item flex items-center gap-3 px-3 py-3 rounded-lg text-gray-700 mb-1">
+            <span>📊</span><span>لوحة التحكم</span>
+        </a>
+        <a href="users.html" class="nav-item flex items-center gap-3 px-3 py-3 rounded-lg text-gray-700 mb-1">
+            <span>👥</span><span>المستخدمين</span>
+        </a>
+        <a href="merchants.html" class="nav-item active flex items-center gap-3 px-3 py-3 rounded-lg text-gray-700 mb-1">
+            <span>🏪</span><span>التجار</span>
+        </a>
+        <a href="transactions.html" class="nav-item flex items-center gap-3 px-3 py-3 rounded-lg text-gray-700 mb-1">
+            <span>💳</span><span>المعاملات</span>
+        </a>
+        <a href="billers.html" class="nav-item flex items-center gap-3 px-3 py-3 rounded-lg text-gray-700 mb-1">
+            <span>📄</span><span>مزودي الخدمات</span>
+        </a>
+        <p class="text-xs text-gray-400 mb-3 mt-6 px-3">الإعدادات</p>
+        <a href="settings.html" class="nav-item flex items-center gap-3 px-3 py-3 rounded-lg text-gray-700 mb-1">
+            <span>⚙️</span><span>الإعدادات</span>
+        </a>
+    </nav>
+    
+    <div class="absolute bottom-0 right-0 left-0 p-4 border-t">
+        <div class="flex items-center gap-3 mb-3">
+            <div class="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center text-amber-600 font-bold">A</div>
+            <div class="flex-1">
+                <p class="text-sm font-medium text-gray-800" id="adminName">Admin</p>
+                <p class="text-xs text-gray-500" id="adminEmail">admin@healthpay.tech</p>
+            </div>
+        </div>
+        <button onclick="logout()" class="w-full py-2 text-red-600 text-sm hover:bg-red-50 rounded-lg transition">تسجيل الخروج</button>
+    </div>
+</aside>
+
+<!-- Main Content -->
+<main class="main-content min-h-screen p-6">
+    <!-- Header -->
+    <div class="flex justify-between items-center mb-8">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-800">إدارة التجار</h1>
+            <p class="text-gray-500">عرض وإدارة حسابات التجار والصيدليات</p>
+        </div>
+        <button onclick="openAddModal()" class="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition flex items-center gap-2">
+            <span>➕</span>
+            إضافة تاجر
+        </button>
+    </div>
+    
+    <!-- Stats -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div class="bg-white rounded-xl p-4 shadow-sm">
+            <p class="text-2xl font-bold text-gray-800" id="statTotal">0</p>
+            <p class="text-gray-500 text-sm">إجمالي التجار</p>
+        </div>
+        <div class="bg-white rounded-xl p-4 shadow-sm">
+            <p class="text-2xl font-bold text-green-600" id="statActive">0</p>
+            <p class="text-gray-500 text-sm">نشط</p>
+        </div>
+        <div class="bg-white rounded-xl p-4 shadow-sm">
+            <p class="text-2xl font-bold text-amber-600" id="statPending">0</p>
+            <p class="text-gray-500 text-sm">في انتظار الموافقة</p>
+        </div>
+        <div class="bg-white rounded-xl p-4 shadow-sm">
+            <p class="text-2xl font-bold text-blue-600" id="statRevenue">0</p>
+            <p class="text-gray-500 text-sm">إجمالي الإيرادات</p>
+        </div>
+    </div>
+    
+    <!-- Pending Approvals Alert -->
+    <div id="pendingAlert" class="hidden bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
+        <div class="flex items-center gap-3">
+            <span class="text-2xl">⚠️</span>
+            <div class="flex-1">
+                <p class="font-medium text-amber-800">هناك <span id="pendingCount">0</span> طلب تسجيل في انتظار الموافقة</p>
+                <p class="text-sm text-amber-600">يرجى مراجعة الطلبات والموافقة عليها أو رفضها</p>
+            </div>
+            <button onclick="filterByPending()" class="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600">عرض الطلبات</button>
+        </div>
+    </div>
+    
+    <!-- Filters -->
+    <div class="bg-white rounded-xl p-4 shadow-sm mb-6">
+        <div class="flex flex-wrap gap-4">
+            <div class="flex-1 min-w-[200px]">
+                <input type="text" id="searchInput" placeholder="بحث بالاسم أو رقم الهاتف أو اسم النشاط..."
+                       class="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500">
+            </div>
+            <select id="statusFilter" class="px-4 py-2 border border-gray-200 rounded-lg">
+                <option value="">كل الحالات</option>
+                <option value="ACTIVE">نشط</option>
+                <option value="PENDING">في انتظار الموافقة</option>
+                <option value="SUSPENDED">موقوف</option>
+            </select>
+            <select id="typeFilter" class="px-4 py-2 border border-gray-200 rounded-lg">
+                <option value="">كل الأنواع</option>
+                <option value="pharmacy">صيدلية</option>
+                <option value="clinic">عيادة</option>
+                <option value="hospital">مستشفى</option>
+                <option value="lab">معمل</option>
+                <option value="other">أخرى</option>
+            </select>
+            <button onclick="loadMerchants()" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200">
+                🔍 بحث
+            </button>
+        </div>
+    </div>
+    
+    <!-- Merchants Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="merchantsGrid">
+        <!-- Populated by JS -->
+    </div>
+    
+    <!-- Pagination -->
+    <div class="flex justify-between items-center mt-6">
+        <p class="text-sm text-gray-500">عرض <span id="showingCount">0</span> من <span id="totalCount">0</span></p>
+        <div class="flex gap-2">
+            <button onclick="prevPage()" id="prevBtn" class="px-4 py-2 bg-white border rounded-lg hover:bg-gray-50 disabled:opacity-50" disabled>السابق</button>
+            <button onclick="nextPage()" id="nextBtn" class="px-4 py-2 bg-white border rounded-lg hover:bg-gray-50 disabled:opacity-50">التالي</button>
+        </div>
+    </div>
+</main>
+
+<!-- Merchant Detail Modal -->
+<div id="detailModal" class="fixed inset-0 modal-overlay hidden items-center justify-center z-50">
+    <div class="bg-white rounded-2xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+        <div class="p-6 border-b flex justify-between items-center">
+            <h3 class="text-lg font-bold">تفاصيل التاجر</h3>
+            <button onclick="closeDetailModal()" class="text-gray-400 hover:text-gray-600">✕</button>
+        </div>
+        <div class="p-6" id="detailContent">
+            <!-- Populated by JS -->
+        </div>
+    </div>
+</div>
+
+<!-- Add Merchant Modal -->
+<div id="addModal" class="fixed inset-0 modal-overlay hidden items-center justify-center z-50">
+    <div class="bg-white rounded-2xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+        <div class="p-6 border-b flex justify-between items-center">
+            <h3 class="text-lg font-bold">إضافة تاجر جديد</h3>
+            <button onclick="closeAddModal()" class="text-gray-400 hover:text-gray-600">✕</button>
+        </div>
+        <form onsubmit="addMerchant(event)" class="p-6 space-y-4">
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">اسم المسؤول</label>
+                    <input type="text" id="newName" required class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">رقم الهاتف</label>
+                    <input type="tel" id="newPhone" required pattern="01[0125][0-9]{8}" placeholder="01xxxxxxxxx"
+                           class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500">
+                </div>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">اسم النشاط التجاري</label>
+                <input type="text" id="newBusinessName" required class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">البريد الإلكتروني</label>
+                <input type="email" id="newEmail" required class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500">
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">نوع النشاط</label>
+                    <select id="newType" required class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500">
+                        <option value="pharmacy">صيدلية</option>
+                        <option value="clinic">عيادة</option>
+                        <option value="hospital">مستشفى</option>
+                        <option value="lab">معمل</option>
+                        <option value="other">أخرى</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">الحالة</label>
+                    <select id="newStatus" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500">
+                        <option value="ACTIVE">نشط</option>
+                        <option value="PENDING">في انتظار الموافقة</option>
+                    </select>
+                </div>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">العنوان</label>
+                <input type="text" id="newAddress" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">الرقم الضريبي (اختياري)</label>
+                <input type="text" id="newTaxId" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500">
+            </div>
+            <div class="flex gap-3 pt-4">
+                <button type="button" onclick="closeAddModal()" class="flex-1 py-3 border rounded-xl hover:bg-gray-50">إلغاء</button>
+                <button type="submit" class="flex-1 py-3 bg-amber-500 text-white rounded-xl hover:bg-amber-600">إضافة</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Edit Merchant Modal -->
+<div id="editModal" class="fixed inset-0 modal-overlay hidden items-center justify-center z-50">
+    <div class="bg-white rounded-2xl w-full max-w-md mx-4">
+        <div class="p-6 border-b flex justify-between items-center">
+            <h3 class="text-lg font-bold">تعديل بيانات التاجر</h3>
+            <button onclick="closeEditModal()" class="text-gray-400 hover:text-gray-600">✕</button>
+        </div>
+        <form onsubmit="saveMerchantEdit(event)" class="p-6 space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">اسم المسؤول</label>
+                <input type="text" id="editName" required class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">رقم الهاتف</label>
+                <input type="tel" id="editPhone" readonly class="w-full px-4 py-2 border rounded-lg bg-gray-100">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">البريد الإلكتروني</label>
+                <input type="email" id="editEmail" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">اسم النشاط التجاري</label>
+                <input type="text" id="editBusinessName" required class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">نوع النشاط</label>
+                <select id="editType" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500">
+                    <option value="pharmacy">صيدلية</option>
+                    <option value="clinic">عيادة</option>
+                    <option value="hospital">مستشفى</option>
+                    <option value="lab">معمل</option>
+                    <option value="other">أخرى</option>
+                </select>
+            </div>
+            <div class="flex gap-3 pt-4">
+                <button type="button" onclick="closeEditModal()" class="flex-1 py-3 border rounded-xl hover:bg-gray-50">إلغاء</button>
+                <button type="submit" class="flex-1 py-3 bg-amber-500 text-white rounded-xl hover:bg-amber-600">حفظ التعديلات</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+// ============================================
+// Configuration & State
+// ============================================
+let merchants = [];
+let currentPage = 1;
+const pageSize = 9;
+
+// ============================================
+// Initialize
+// ============================================
+document.addEventListener('DOMContentLoaded', () => {
+    checkAuth();
+    loadMerchants();
+    
+    document.getElementById('searchInput').addEventListener('input', debounce(filterMerchants, 300));
+    document.getElementById('statusFilter').addEventListener('change', filterMerchants);
+    document.getElementById('typeFilter').addEventListener('change', filterMerchants);
+});
+
+function checkAuth() {
+    const token = localStorage.getItem('healthpay_admin_token');
+    if (!token) {
+        window.location.href = 'index.html';
+        return;
+    }
+    const adminInfo = JSON.parse(localStorage.getItem('healthpay_admin_info') || '{}');
+    if (adminInfo.name) document.getElementById('adminName').textContent = adminInfo.name;
+    if (adminInfo.email) document.getElementById('adminEmail').textContent = adminInfo.email;
+}
+
+function debounce(func, wait) {
+    let timeout;
+    return function(...args) {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func.apply(this, args), wait);
+    };
+}
+
+// ============================================
+// Load Merchants
+// ============================================
+async function loadMerchants() {
+    // Mock data
+    merchants = [
+        { id: 'merchant-demo-001', name: 'أحمد محمود', phone: '01012345678', email: 'demo@healthpay.tech', businessName: 'صيدلية الشفاء', type: 'pharmacy', status: 'ACTIVE', address: 'شارع التحرير، القاهرة', taxId: '123-456-789', revenue: 125000, transactionCount: 342, customers: 89, createdAt: '2025-10-15T10:00:00Z', rating: 4.8 },
+        { id: 'merchant-002', name: 'سارة أحمد', phone: '01123456789', email: 'sara@clinic.com', businessName: 'عيادة الأمل', type: 'clinic', status: 'ACTIVE', address: 'المعادي، القاهرة', taxId: '234-567-890', revenue: 89000, transactionCount: 156, customers: 45, createdAt: '2025-11-01T14:00:00Z', rating: 4.5 },
+        { id: 'merchant-003', name: 'محمد حسن', phone: '01234567890', email: 'mohamed@pharmacy.com', businessName: 'صيدلية النور', type: 'pharmacy', status: 'ACTIVE', address: 'مدينة نصر، القاهرة', taxId: '345-678-901', revenue: 67000, transactionCount: 234, customers: 67, createdAt: '2025-11-15T09:00:00Z', rating: 4.2 },
+        { id: 'merchant-004', name: 'فاطمة علي', phone: '01098765432', email: 'fatma@lab.com', businessName: 'معمل الحياة', type: 'lab', status: 'PENDING', address: 'الزمالك، القاهرة', taxId: null, revenue: 0, transactionCount: 0, customers: 0, createdAt: '2026-01-01T16:00:00Z', rating: 0 },
+        { id: 'merchant-005', name: 'علي محمد', phone: '01111111111', email: 'ali@hospital.com', businessName: 'مستشفى السلام', type: 'hospital', status: 'ACTIVE', address: 'الإسكندرية', taxId: '456-789-012', revenue: 450000, transactionCount: 890, customers: 234, createdAt: '2025-09-01T11:00:00Z', rating: 4.9 },
+        { id: 'merchant-006', name: 'نور الدين', phone: '01222222222', email: 'nour@pharmacy.com', businessName: 'صيدلية الرحمة', type: 'pharmacy', status: 'SUSPENDED', address: 'طنطا، الغربية', taxId: '567-890-123', revenue: 23000, transactionCount: 78, customers: 23, createdAt: '2025-12-01T08:00:00Z', rating: 3.2 },
+        { id: 'merchant-007', name: 'مريم عبدالله', phone: '01555555555', email: 'mariam@clinic.com', businessName: 'عيادة الشفاء', type: 'clinic', status: 'PENDING', address: 'المنصورة، الدقهلية', taxId: null, revenue: 0, transactionCount: 0, customers: 0, createdAt: '2026-01-02T07:00:00Z', rating: 0 },
+        { id: 'merchant-008', name: 'يوسف إبراهيم', phone: '01666666666', email: 'youssef@lab.com', businessName: 'معمل التحاليل الدقيقة', type: 'lab', status: 'ACTIVE', address: 'الجيزة', taxId: '678-901-234', revenue: 156000, transactionCount: 567, customers: 145, createdAt: '2025-08-15T13:00:00Z', rating: 4.6 },
+        { id: 'merchant-009', name: 'هدى سعيد', phone: '01777777777', email: 'huda@pharmacy.com', businessName: 'صيدلية الصحة', type: 'pharmacy', status: 'ACTIVE', address: 'أسيوط', taxId: '789-012-345', revenue: 34000, transactionCount: 123, customers: 56, createdAt: '2025-12-10T10:00:00Z', rating: 4.0 }
+    ];
+    
+    updateStats();
+    filterMerchants();
+}
+
+function updateStats() {
+    const pending = merchants.filter(m => m.status === 'PENDING');
+    
+    document.getElementById('statTotal').textContent = merchants.length;
+    document.getElementById('statActive').textContent = merchants.filter(m => m.status === 'ACTIVE').length;
+    document.getElementById('statPending').textContent = pending.length;
+    document.getElementById('statRevenue').textContent = formatCurrency(merchants.reduce((sum, m) => sum + m.revenue, 0));
+    
+    // Show pending alert
+    if (pending.length > 0) {
+        document.getElementById('pendingAlert').classList.remove('hidden');
+        document.getElementById('pendingCount').textContent = pending.length;
+    } else {
+        document.getElementById('pendingAlert').classList.add('hidden');
+    }
+}
+
+function formatCurrency(amount) {
+    if (amount >= 1000000) return (amount / 1000000).toFixed(1) + 'M';
+    if (amount >= 1000) return (amount / 1000).toFixed(0) + 'K';
+    return amount.toLocaleString('ar-EG');
+}
+
+// ============================================
+// Filter & Render
+// ============================================
+function filterMerchants() {
+    const search = document.getElementById('searchInput').value.toLowerCase();
+    const status = document.getElementById('statusFilter').value;
+    const type = document.getElementById('typeFilter').value;
+    
+    let filtered = merchants.filter(m => {
+        const matchSearch = !search || 
+            m.name.toLowerCase().includes(search) || 
+            m.phone.includes(search) ||
+            m.businessName.toLowerCase().includes(search);
+        const matchStatus = !status || m.status === status;
+        const matchType = !type || m.type === type;
+        return matchSearch && matchStatus && matchType;
+    });
+    
+    renderMerchants(filtered);
+}
+
+function filterByPending() {
+    document.getElementById('statusFilter').value = 'PENDING';
+    filterMerchants();
+}
+
+function renderMerchants(filtered) {
+    const start = (currentPage - 1) * pageSize;
+    const end = start + pageSize;
+    const pageMerchants = filtered.slice(start, end);
+    
+    const grid = document.getElementById('merchantsGrid');
+    grid.innerHTML = pageMerchants.map(m => `
+        <div class="bg-white rounded-xl shadow-sm overflow-hidden hover:shadow-md transition cursor-pointer" onclick="showMerchantDetail('${m.id}')">
+            <div class="p-4 border-b">
+                <div class="flex items-center gap-3">
+                    <div class="w-12 h-12 bg-gradient-to-br from-amber-400 to-orange-500 rounded-xl flex items-center justify-center text-white text-lg">
+                        ${getTypeIcon(m.type)}
+                    </div>
+                    <div class="flex-1">
+                        <h3 class="font-bold text-gray-800">${m.businessName}</h3>
+                        <p class="text-sm text-gray-500">${m.name}</p>
+                    </div>
+                    <span class="px-2 py-1 rounded-full text-xs status-${m.status.toLowerCase()}">
+                        ${getStatusLabel(m.status)}
+                    </span>
+                </div>
+            </div>
+            <div class="p-4 space-y-2">
+                <div class="flex justify-between text-sm">
+                    <span class="text-gray-500">الإيرادات</span>
+                    <span class="font-medium text-green-600">${m.revenue.toLocaleString('ar-EG')} ج.م</span>
+                </div>
+                <div class="flex justify-between text-sm">
+                    <span class="text-gray-500">المعاملات</span>
+                    <span class="text-gray-800">${m.transactionCount}</span>
+                </div>
+                <div class="flex justify-between text-sm">
+                    <span class="text-gray-500">العملاء</span>
+                    <span class="text-gray-800">${m.customers}</span>
+                </div>
+                ${m.rating > 0 ? `
+                <div class="flex justify-between text-sm">
+                    <span class="text-gray-500">التقييم</span>
+                    <span class="text-amber-500">⭐ ${m.rating}</span>
+                </div>
+                ` : ''}
+            </div>
+            ${m.status === 'PENDING' ? `
+            <div class="p-4 bg-amber-50 border-t flex gap-2">
+                <button onclick="event.stopPropagation(); approveMerchant('${m.id}')" class="flex-1 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 text-sm">✓ موافقة</button>
+                <button onclick="event.stopPropagation(); rejectMerchant('${m.id}')" class="flex-1 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 text-sm">✕ رفض</button>
+            </div>
+            ` : ''}
+        </div>
+    `).join('');
+    
+    // Update pagination
+    document.getElementById('showingCount').textContent = pageMerchants.length;
+    document.getElementById('totalCount').textContent = filtered.length;
+    document.getElementById('prevBtn').disabled = currentPage === 1;
+    document.getElementById('nextBtn').disabled = end >= filtered.length;
+}
+
+function getTypeIcon(type) {
+    const icons = { pharmacy: '💊', clinic: '🏥', hospital: '🏨', lab: '🔬', other: '🏪' };
+    return icons[type] || '🏪';
+}
+
+function getTypeLabel(type) {
+    const labels = { pharmacy: 'صيدلية', clinic: 'عيادة', hospital: 'مستشفى', lab: 'معمل', other: 'أخرى' };
+    return labels[type] || type;
+}
+
+function getStatusLabel(status) {
+    const labels = { ACTIVE: 'نشط', PENDING: 'في انتظار الموافقة', SUSPENDED: 'موقوف' };
+    return labels[status] || status;
+}
+
+function formatDate(dateStr) {
+    if (!dateStr) return '-';
+    return new Date(dateStr).toLocaleDateString('ar-EG', { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+// ============================================
+// Pagination
+// ============================================
+function prevPage() {
+    if (currentPage > 1) {
+        currentPage--;
+        filterMerchants();
+    }
+}
+
+function nextPage() {
+    currentPage++;
+    filterMerchants();
+}
+
+// ============================================
+// Modals
+// ============================================
+function showMerchantDetail(id) {
+    const m = merchants.find(x => x.id === id);
+    if (!m) return;
+    
+    document.getElementById('detailContent').innerHTML = `
+        <div class="flex items-start gap-4 mb-6">
+            <div class="w-16 h-16 bg-gradient-to-br from-amber-400 to-orange-500 rounded-xl flex items-center justify-center text-white text-2xl">
+                ${getTypeIcon(m.type)}
+            </div>
+            <div class="flex-1">
+                <h3 class="text-xl font-bold text-gray-800">${m.businessName}</h3>
+                <p class="text-gray-500">${m.name} • ${m.phone}</p>
+                <span class="inline-block mt-2 px-3 py-1 rounded-full text-sm status-${m.status.toLowerCase()}">
+                    ${getStatusLabel(m.status)}
+                </span>
+            </div>
+        </div>
+        
+        <div class="grid grid-cols-3 gap-4 mb-6">
+            <div class="bg-green-50 rounded-xl p-4 text-center">
+                <p class="text-2xl font-bold text-green-600">${m.revenue.toLocaleString('ar-EG')}</p>
+                <p class="text-xs text-gray-500">إجمالي الإيرادات</p>
+            </div>
+            <div class="bg-blue-50 rounded-xl p-4 text-center">
+                <p class="text-2xl font-bold text-blue-600">${m.transactionCount}</p>
+                <p class="text-xs text-gray-500">المعاملات</p>
+            </div>
+            <div class="bg-purple-50 rounded-xl p-4 text-center">
+                <p class="text-2xl font-bold text-purple-600">${m.customers}</p>
+                <p class="text-xs text-gray-500">العملاء</p>
+            </div>
+        </div>
+        
+        <div class="space-y-3 mb-6">
+            <div class="flex justify-between py-3 border-b">
+                <span class="text-gray-500">البريد الإلكتروني</span>
+                <span class="text-gray-800">${m.email}</span>
+            </div>
+            <div class="flex justify-between py-3 border-b">
+                <span class="text-gray-500">نوع النشاط</span>
+                <span class="text-gray-800">${getTypeLabel(m.type)}</span>
+            </div>
+            <div class="flex justify-between py-3 border-b">
+                <span class="text-gray-500">العنوان</span>
+                <span class="text-gray-800">${m.address || '-'}</span>
+            </div>
+            <div class="flex justify-between py-3 border-b">
+                <span class="text-gray-500">الرقم الضريبي</span>
+                <span class="text-gray-800">${m.taxId || '-'}</span>
+            </div>
+            <div class="flex justify-between py-3 border-b">
+                <span class="text-gray-500">تاريخ التسجيل</span>
+                <span class="text-gray-800">${formatDate(m.createdAt)}</span>
+            </div>
+            ${m.rating > 0 ? `
+            <div class="flex justify-between py-3">
+                <span class="text-gray-500">التقييم</span>
+                <span class="text-amber-500">⭐ ${m.rating} / 5</span>
+            </div>
+            ` : ''}
+        </div>
+        
+        <div class="flex gap-3">
+            ${m.status === 'PENDING' ? `
+                <button onclick="approveMerchant('${m.id}'); closeDetailModal();" class="flex-1 py-3 bg-green-500 text-white rounded-xl hover:bg-green-600">✓ موافقة</button>
+                <button onclick="rejectMerchant('${m.id}'); closeDetailModal();" class="flex-1 py-3 bg-red-500 text-white rounded-xl hover:bg-red-600">✕ رفض</button>
+            ` : `
+                <button onclick="viewTransactions('${m.id}')" class="flex-1 py-3 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-100">💳 المعاملات</button>
+                <button onclick="editMerchant('${m.id}')" class="flex-1 py-3 bg-amber-50 text-amber-600 rounded-xl hover:bg-amber-100">✏️ تعديل</button>
+                ${m.status === 'ACTIVE' ? `
+                    <button onclick="suspendMerchant('${m.id}')" class="py-3 px-4 bg-red-50 text-red-600 rounded-xl hover:bg-red-100">🔒</button>
+                ` : `
+                    <button onclick="activateMerchant('${m.id}')" class="py-3 px-4 bg-green-50 text-green-600 rounded-xl hover:bg-green-100">🔓</button>
+                `}
+            `}
+        </div>
+    `;
+    
+    document.getElementById('detailModal').classList.remove('hidden');
+    document.getElementById('detailModal').classList.add('flex');
+}
+
+function closeDetailModal() {
+    document.getElementById('detailModal').classList.add('hidden');
+    document.getElementById('detailModal').classList.remove('flex');
+}
+
+function openAddModal() {
+    document.getElementById('addModal').classList.remove('hidden');
+    document.getElementById('addModal').classList.add('flex');
+}
+
+function closeAddModal() {
+    document.getElementById('addModal').classList.add('hidden');
+    document.getElementById('addModal').classList.remove('flex');
+}
+
+// ============================================
+// Actions
+// ============================================
+async function addMerchant(event) {
+    event.preventDefault();
+    
+    const name = document.getElementById('newName').value;
+    const phone = document.getElementById('newPhone').value;
+    const email = document.getElementById('newEmail').value || null;
+    const businessName = document.getElementById('newBusinessName').value;
+    const businessType = document.getElementById('newType').value;
+    const password = document.getElementById('newPassword')?.value || 'HealthPay123!';
+    
+    const token = localStorage.getItem('healthpay_admin_token');
+    
+    try {
+        const response = await fetch('http://104.248.245.150:4000/graphql', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': token ? `Bearer ${token}` : ''
+            },
+            body: JSON.stringify({
+                query: `mutation AdminCreateMerchant($input: AdminCreateMerchantInput!) {
+                    adminCreateMerchant(input: $input) {
+                        success
+                        message
+                        merchant { id name phone email businessName businessType status createdAt }
+                    }
+                }`,
+                variables: { input: { name, phone, email, businessName, businessType, password } }
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.data?.adminCreateMerchant?.success) {
+            const newMerchant = result.data.adminCreateMerchant.merchant;
+            merchants.unshift({
+                id: newMerchant.id,
+                name: newMerchant.name,
+                phone: newMerchant.phone,
+                email: newMerchant.email,
+                businessName: newMerchant.businessName,
+                type: newMerchant.businessType,
+                status: newMerchant.status,
+                revenue: 0,
+                transactionCount: 0,
+                customers: 0,
+                createdAt: newMerchant.createdAt,
+                rating: 0
+            });
+            updateStats();
+            filterMerchants();
+            closeAddModal();
+            alert('تم إضافة التاجر بنجاح');
+        } else {
+            alert('خطأ: ' + (result.data?.adminCreateMerchant?.message || result.errors?.[0]?.message || 'فشل في إضافة التاجر'));
+        }
+    } catch (error) {
+        console.error('Error adding merchant:', error);
+        alert('حدث خطأ أثناء إضافة التاجر');
+    }
+}
+
+function approveMerchant(id) {
+    const m = merchants.find(x => x.id === id);
+    if (m) {
+        m.status = 'ACTIVE';
+        updateStats();
+        filterMerchants();
+        alert('تم الموافقة على التاجر');
+    }
+}
+
+function rejectMerchant(id) {
+    if (confirm('هل أنت متأكد من رفض هذا التاجر؟')) {
+        merchants = merchants.filter(m => m.id !== id);
+        updateStats();
+        filterMerchants();
+        alert('تم رفض التاجر');
+    }
+}
+
+function suspendMerchant(id) {
+    const m = merchants.find(x => x.id === id);
+    if (m && confirm('هل أنت متأكد من إيقاف هذا التاجر؟')) {
+        m.status = 'SUSPENDED';
+        updateStats();
+        filterMerchants();
+        closeDetailModal();
+    }
+}
+
+function activateMerchant(id) {
+    const m = merchants.find(x => x.id === id);
+    if (m) {
+        m.status = 'ACTIVE';
+        updateStats();
+        filterMerchants();
+        closeDetailModal();
+    }
+}
+
+let editingMerchantId = null;
+
+function editMerchant(id) {
+    const m = merchants.find(x => x.id === id);
+    if (!m) {
+        alert('التاجر غير موجود');
+        return;
+    }
+    
+    editingMerchantId = id;
+    document.getElementById('editName').value = m.name || '';
+    document.getElementById('editPhone').value = m.phone || '';
+    document.getElementById('editEmail').value = m.email || '';
+    document.getElementById('editBusinessName').value = m.businessName || '';
+    document.getElementById('editType').value = m.type || 'other';
+    document.getElementById('editModal').classList.remove('hidden');
+    document.getElementById('editModal').classList.add('flex');
+    closeDetailModal();
+}
+
+function closeEditModal() {
+    document.getElementById('editModal').classList.add('hidden');
+    document.getElementById('editModal').classList.remove('flex');
+    editingMerchantId = null;
+}
+
+async function saveMerchantEdit(event) {
+    event.preventDefault();
+    if (!editingMerchantId) return;
+    
+    const name = document.getElementById('editName').value;
+    const email = document.getElementById('editEmail').value || null;
+    const businessName = document.getElementById('editBusinessName').value;
+    const businessType = document.getElementById('editType').value;
+    
+    const token = localStorage.getItem('healthpay_admin_token');
+    
+    try {
+        const response = await fetch('http://104.248.245.150:4000/graphql', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': token ? `Bearer ${token}` : ''
+            },
+            body: JSON.stringify({
+                query: `mutation AdminUpdateMerchant($id: ID!, $input: AdminUpdateMerchantInput!) {
+                    adminUpdateMerchant(id: $id, input: $input) {
+                        success
+                        message
+                        merchant { id name phone email businessName businessType status }
+                    }
+                }`,
+                variables: { id: editingMerchantId, input: { name, email, businessName, businessType } }
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.data?.adminUpdateMerchant?.success) {
+            const index = merchants.findIndex(m => m.id === editingMerchantId);
+            if (index !== -1) {
+                merchants[index] = { ...merchants[index], name, email, businessName, type: businessType };
+            }
+            updateStats();
+            filterMerchants();
+            closeEditModal();
+            alert('تم تحديث بيانات التاجر بنجاح');
+        } else {
+            alert('خطأ: ' + (result.data?.adminUpdateMerchant?.message || 'فشل في تحديث التاجر'));
+        }
+    } catch (error) {
+        console.error('Error updating merchant:', error);
+        alert('حدث خطأ أثناء تحديث التاجر');
+    }
+}
+
+function viewTransactions(merchantId) {
+    window.location.href = `transactions.html?merchantId=${merchantId}`;
+}
+
+function logout() {
+    localStorage.removeItem('healthpay_admin_token');
+    localStorage.removeItem('healthpay_admin_info');
+    window.location.href = 'index.html';
+}
+</script>
+
+</body>
+</html>

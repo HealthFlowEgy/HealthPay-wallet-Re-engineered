@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>إدارة المعاملات - HealthPay Admin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+        .sidebar { width: 260px; }
+        .main-content { margin-right: 260px; }
+        @media (max-width: 1024px) {
+            .sidebar { transform: translateX(100%); position: fixed; z-index: 50; }
+            .sidebar.open { transform: translateX(0); }
+            .main-content { margin-right: 0; }
+        }
+        .nav-item:hover { background: rgba(245, 158, 11, 0.1); }
+        .nav-item.active { background: rgba(245, 158, 11, 0.15); border-right: 3px solid #f59e0b; }
+        .status-completed { background: #dcfce7; color: #166534; }
+        .status-pending { background: #fef3c7; color: #92400e; }
+        .status-failed { background: #fee2e2; color: #991b1b; }
+        .status-refunded { background: #e0e7ff; color: #3730a3; }
+    </style>
+</head>
+<body class="bg-gray-100">
+<!-- Sidebar -->
+<aside class="sidebar fixed top-0 right-0 h-full bg-white shadow-lg transition-transform duration-300">
+    <div class="p-6 border-b">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl flex items-center justify-center text-white font-bold">
+                HP
+            </div>
+            <div>
+                <h1 class="font-bold text-gray-800">HealthPay</h1>
+                <p class="text-xs text-gray-500">لوحة الإدارة</p>
+            </div>
+        </div>
+    </div>
+    
+    <nav class="p-4">
+        <p class="text-xs text-gray-400 mb-3 px-3">القائمة الرئيسية</p>
+        
+        <a href="dashboard.html" class="nav-item flex items-center gap-3 px-3 py-3 rounded-lg text-gray-700 mb-1">
+            <span>📊</span>
+            <span>لوحة التحكم</span>
+        </a>
+        
+        <a href="users.html" class="nav-item flex items-center gap-3 px-3 py-3 rounded-lg text-gray-700 mb-1">
+            <span>👥</span>
+            <span>المستخدمين</span>
+        </a>
+        
+        <a href="merchants.html" class="nav-item flex items-center gap-3 px-3 py-3 rounded-lg text-gray-700 mb-1">
+            <span>🏪</span>
+            <span>التجار</span>
+        </a>
+        
+        <a href="transactions.html" class="nav-item active flex items-center gap-3 px-3 py-3 rounded-lg text-gray-700 mb-1">
+            <span>💳</span>
+            <span>المعاملات</span>
+        </a>
+        
+        <a href="billers.html" class="nav-item flex items-center gap-3 px-3 py-3 rounded-lg text-gray-700 mb-1">
+            <span>📄</span>
+            <span>مزودي الخدمات</span>
+        </a>
+        
+        <p class="text-xs text-gray-400 mb-3 mt-6 px-3">الإعدادات</p>
+        
+        <a href="settings.html" class="nav-item flex items-center gap-3 px-3 py-3 rounded-lg text-gray-700 mb-1">
+            <span>⚙️</span>
+            <span>الإعدادات</span>
+        </a>
+    </nav>
+    
+    <div class="absolute bottom-0 right-0 left-0 p-4 border-t">
+        <button onclick="logout()" class="w-full py-2 text-red-600 text-sm hover:bg-red-50 rounded-lg transition">
+            تسجيل الخروج
+        </button>
+    </div>
+</aside>
+
+<!-- Main Content -->
+<main class="main-content min-h-screen p-6">
+    <!-- Header -->
+    <div class="flex justify-between items-center mb-6">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-800">إدارة المعاملات</h1>
+            <p class="text-gray-500">عرض وإدارة جميع المعاملات المالية</p>
+        </div>
+        <button onclick="exportTransactions()" class="bg-amber-500 text-white px-4 py-2 rounded-lg hover:bg-amber-600 transition flex items-center gap-2">
+            <span>📥</span>
+            <span>تصدير التقرير</span>
+        </button>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div class="bg-white rounded-xl p-4 shadow-sm">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-gray-500 text-sm">إجمالي المعاملات</p>
+                    <p class="text-2xl font-bold text-gray-800" id="totalCount">-</p>
+                </div>
+                <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
+                    <span class="text-2xl">💳</span>
+                </div>
+            </div>
+        </div>
+        <div class="bg-white rounded-xl p-4 shadow-sm">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-gray-500 text-sm">المعاملات المكتملة</p>
+                    <p class="text-2xl font-bold text-green-600" id="completedCount">-</p>
+                </div>
+                <div class="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
+                    <span class="text-2xl">✅</span>
+                </div>
+            </div>
+        </div>
+        <div class="bg-white rounded-xl p-4 shadow-sm">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-gray-500 text-sm">المعاملات المعلقة</p>
+                    <p class="text-2xl font-bold text-amber-600" id="pendingCount">-</p>
+                </div>
+                <div class="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center">
+                    <span class="text-2xl">⏳</span>
+                </div>
+            </div>
+        </div>
+        <div class="bg-white rounded-xl p-4 shadow-sm">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-gray-500 text-sm">إجمالي المبالغ</p>
+                    <p class="text-2xl font-bold text-gray-800" id="totalAmount">-</p>
+                </div>
+                <div class="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
+                    <span class="text-2xl">💰</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="bg-white rounded-xl p-4 shadow-sm mb-6">
+        <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <div>
+                <label class="block text-sm text-gray-600 mb-1">بحث</label>
+                <input type="text" id="searchInput" placeholder="رقم المعاملة أو الهاتف..." 
+                       class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500">
+            </div>
+            <div>
+                <label class="block text-sm text-gray-600 mb-1">الحالة</label>
+                <select id="statusFilter" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500">
+                    <option value="">كل الحالات</option>
+                    <option value="COMPLETED">مكتمل</option>
+                    <option value="PENDING">معلق</option>
+                    <option value="FAILED">فشل</option>
+                    <option value="REFUNDED">مسترد</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm text-gray-600 mb-1">النوع</label>
+                <select id="typeFilter" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500">
+                    <option value="">كل الأنواع</option>
+                    <option value="PAYMENT">دفع</option>
+                    <option value="TOPUP">شحن</option>
+                    <option value="TRANSFER">تحويل</option>
+                    <option value="WITHDRAWAL">سحب</option>
+                    <option value="REFUND">استرداد</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm text-gray-600 mb-1">من تاريخ</label>
+                <input type="date" id="startDate" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500">
+            </div>
+            <div>
+                <label class="block text-sm text-gray-600 mb-1">إلى تاريخ</label>
+                <input type="date" id="endDate" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500">
+            </div>
+        </div>
+        <div class="mt-4 flex justify-end">
+            <button onclick="applyFilters()" class="bg-amber-500 text-white px-6 py-2 rounded-lg hover:bg-amber-600 transition">
+                🔍 بحث
+            </button>
+        </div>
+    </div>
+
+    <!-- Transactions Table -->
+    <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-4 py-3 text-right text-sm font-medium text-gray-600">رقم المعاملة</th>
+                        <th class="px-4 py-3 text-right text-sm font-medium text-gray-600">النوع</th>
+                        <th class="px-4 py-3 text-right text-sm font-medium text-gray-600">المرسل</th>
+                        <th class="px-4 py-3 text-right text-sm font-medium text-gray-600">المستلم</th>
+                        <th class="px-4 py-3 text-right text-sm font-medium text-gray-600">المبلغ</th>
+                        <th class="px-4 py-3 text-right text-sm font-medium text-gray-600">الحالة</th>
+                        <th class="px-4 py-3 text-right text-sm font-medium text-gray-600">التاريخ</th>
+                        <th class="px-4 py-3 text-right text-sm font-medium text-gray-600">إجراءات</th>
+                    </tr>
+                </thead>
+                <tbody id="transactionsTable" class="divide-y">
+                    <!-- Transactions will be loaded here -->
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Pagination -->
+        <div class="px-4 py-3 border-t flex items-center justify-between">
+            <p class="text-sm text-gray-500" id="paginationInfo">عرض 0 من 0</p>
+            <div class="flex gap-2">
+                <button id="prevBtn" onclick="prevPage()" disabled class="px-3 py-1 border rounded-lg disabled:opacity-50">السابق</button>
+                <button id="nextBtn" onclick="nextPage()" disabled class="px-3 py-1 border rounded-lg disabled:opacity-50">التالي</button>
+            </div>
+        </div>
+    </div>
+</main>
+
+<!-- Transaction Details Modal -->
+<div id="detailsModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
+    <div class="bg-white rounded-2xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+        <div class="p-6 border-b flex justify-between items-center">
+            <h3 class="text-lg font-bold">تفاصيل المعاملة</h3>
+            <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600">✕</button>
+        </div>
+        <div class="p-6" id="modalContent">
+            <!-- Details will be loaded here -->
+        </div>
+    </div>
+</div>
+
+<script>
+const API_URL = window.location.origin + '/graphql';
+let currentPage = 0;
+const pageSize = 20;
+let totalTransactions = 0;
+
+// Sample data for demo
+const sampleTransactions = [
+    { id: 'TXN-001', type: 'PAYMENT', senderPhone: '01012345678', senderName: 'محمد أحمد', receiverPhone: '01098765432', receiverName: 'صيدلية الشفاء', amount: 350, status: 'COMPLETED', createdAt: '2026-01-03T10:30:00Z' },
+    { id: 'TXN-002', type: 'TOPUP', senderPhone: 'System', senderName: 'شحن رصيد', receiverPhone: '01123456789', receiverName: 'سارة محمود', amount: 500, status: 'COMPLETED', createdAt: '2026-01-03T10:15:00Z' },
+    { id: 'TXN-003', type: 'TRANSFER', senderPhone: '01234567890', senderName: 'أحمد حسن', receiverPhone: '01111111111', receiverName: 'علي محمد', amount: 180, status: 'PENDING', createdAt: '2026-01-03T10:00:00Z' },
+    { id: 'TXN-004', type: 'PAYMENT', senderPhone: '01098765432', senderName: 'فاطمة علي', receiverPhone: '01012345678', receiverName: 'عيادة الأمل', amount: 890, status: 'COMPLETED', createdAt: '2026-01-03T09:45:00Z' },
+    { id: 'TXN-005', type: 'WITHDRAWAL', senderPhone: '01012345678', senderName: 'صيدلية الشفاء', receiverPhone: 'Bank', receiverName: 'سحب بنكي', amount: 5000, status: 'PENDING', createdAt: '2026-01-03T09:30:00Z' },
+    { id: 'TXN-006', type: 'PAYMENT', senderPhone: '01555555555', senderName: 'مريم عبدالله', receiverPhone: '01012345678', receiverName: 'صيدلية الشفاء', amount: 245, status: 'FAILED', createdAt: '2026-01-03T09:15:00Z' },
+    { id: 'TXN-007', type: 'REFUND', senderPhone: '01012345678', senderName: 'صيدلية الشفاء', receiverPhone: '01777777777', receiverName: 'هدى سعيد', amount: 150, status: 'REFUNDED', createdAt: '2026-01-03T09:00:00Z' },
+    { id: 'TXN-008', type: 'TOPUP', senderPhone: 'System', senderName: 'شحن رصيد', receiverPhone: '01888888888', receiverName: 'كريم حسين', amount: 1000, status: 'COMPLETED', createdAt: '2026-01-02T18:30:00Z' },
+    { id: 'TXN-009', type: 'PAYMENT', senderPhone: '01666666666', senderName: 'يوسف إبراهيم', receiverPhone: '01012345678', receiverName: 'معمل التحاليل', amount: 320, status: 'COMPLETED', createdAt: '2026-01-02T17:45:00Z' },
+    { id: 'TXN-010', type: 'TRANSFER', senderPhone: '01222222222', senderName: 'نور الدين', receiverPhone: '01333333333', receiverName: 'أمير سعيد', amount: 750, status: 'COMPLETED', createdAt: '2026-01-02T16:20:00Z' },
+];
+
+// Check authentication
+(function checkAuth() {
+    const token = localStorage.getItem('healthpay_admin_token');
+    if (!token) {
+        window.location.href = 'index.html';
+    }
+})();
+
+// Load transactions
+async function loadTransactions() {
+    try {
+        // For demo, use sample data
+        displayTransactions(sampleTransactions);
+        updateStats(sampleTransactions);
+    } catch (error) {
+        console.error('Error loading transactions:', error);
+        displayTransactions(sampleTransactions);
+        updateStats(sampleTransactions);
+    }
+}
+
+function displayTransactions(transactions) {
+    const tbody = document.getElementById('transactionsTable');
+    
+    if (transactions.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="8" class="px-4 py-8 text-center text-gray-500">
+                    لا توجد معاملات
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    tbody.innerHTML = transactions.map(tx => `
+        <tr class="hover:bg-gray-50">
+            <td class="px-4 py-3">
+                <span class="font-mono text-sm text-gray-800">${tx.id}</span>
+            </td>
+            <td class="px-4 py-3">
+                <span class="text-sm">${getTypeLabel(tx.type)}</span>
+            </td>
+            <td class="px-4 py-3">
+                <div>
+                    <p class="text-sm font-medium text-gray-800">${tx.senderName}</p>
+                    <p class="text-xs text-gray-500">${tx.senderPhone}</p>
+                </div>
+            </td>
+            <td class="px-4 py-3">
+                <div>
+                    <p class="text-sm font-medium text-gray-800">${tx.receiverName}</p>
+                    <p class="text-xs text-gray-500">${tx.receiverPhone}</p>
+                </div>
+            </td>
+            <td class="px-4 py-3">
+                <span class="font-bold text-gray-800">${tx.amount.toLocaleString('ar-EG')} ج.م</span>
+            </td>
+            <td class="px-4 py-3">
+                <span class="px-2 py-1 rounded-full text-xs font-medium ${getStatusClass(tx.status)}">
+                    ${getStatusLabel(tx.status)}
+                </span>
+            </td>
+            <td class="px-4 py-3">
+                <span class="text-sm text-gray-600">${formatDate(tx.createdAt)}</span>
+            </td>
+            <td class="px-4 py-3">
+                <button onclick="viewDetails('${tx.id}')" class="text-amber-600 hover:text-amber-800 text-sm">
+                    👁️ عرض
+                </button>
+            </td>
+        </tr>
+    `).join('');
+    
+    totalTransactions = transactions.length;
+    document.getElementById('paginationInfo').textContent = `عرض ${transactions.length} من ${totalTransactions}`;
+}
+
+function updateStats(transactions) {
+    document.getElementById('totalCount').textContent = transactions.length.toLocaleString('ar-EG');
+    document.getElementById('completedCount').textContent = transactions.filter(t => t.status === 'COMPLETED').length.toLocaleString('ar-EG');
+    document.getElementById('pendingCount').textContent = transactions.filter(t => t.status === 'PENDING').length.toLocaleString('ar-EG');
+    
+    const total = transactions.reduce((sum, t) => sum + t.amount, 0);
+    document.getElementById('totalAmount').textContent = total.toLocaleString('ar-EG') + ' ج.م';
+}
+
+function getTypeLabel(type) {
+    const labels = {
+        'PAYMENT': '💳 دفع',
+        'TOPUP': '📱 شحن',
+        'TRANSFER': '↔️ تحويل',
+        'WITHDRAWAL': '💸 سحب',
+        'REFUND': '↩️ استرداد'
+    };
+    return labels[type] || type;
+}
+
+function getStatusLabel(status) {
+    const labels = {
+        'COMPLETED': 'مكتمل',
+        'PENDING': 'معلق',
+        'FAILED': 'فشل',
+        'REFUNDED': 'مسترد'
+    };
+    return labels[status] || status;
+}
+
+function getStatusClass(status) {
+    const classes = {
+        'COMPLETED': 'status-completed',
+        'PENDING': 'status-pending',
+        'FAILED': 'status-failed',
+        'REFUNDED': 'status-refunded'
+    };
+    return classes[status] || '';
+}
+
+function formatDate(dateStr) {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('ar-EG', { 
+        year: 'numeric', 
+        month: 'short', 
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+}
+
+function applyFilters() {
+    const search = document.getElementById('searchInput').value.toLowerCase();
+    const status = document.getElementById('statusFilter').value;
+    const type = document.getElementById('typeFilter').value;
+    
+    let filtered = sampleTransactions.filter(tx => {
+        if (search && !tx.id.toLowerCase().includes(search) && 
+            !tx.senderPhone.includes(search) && !tx.receiverPhone.includes(search)) {
+            return false;
+        }
+        if (status && tx.status !== status) return false;
+        if (type && tx.type !== type) return false;
+        return true;
+    });
+    
+    displayTransactions(filtered);
+    updateStats(filtered);
+}
+
+function viewDetails(txId) {
+    const tx = sampleTransactions.find(t => t.id === txId);
+    if (!tx) return;
+    
+    document.getElementById('modalContent').innerHTML = `
+        <div class="space-y-4">
+            <div class="flex justify-between py-2 border-b">
+                <span class="text-gray-500">رقم المعاملة</span>
+                <span class="font-mono font-bold">${tx.id}</span>
+            </div>
+            <div class="flex justify-between py-2 border-b">
+                <span class="text-gray-500">النوع</span>
+                <span>${getTypeLabel(tx.type)}</span>
+            </div>
+            <div class="flex justify-between py-2 border-b">
+                <span class="text-gray-500">المرسل</span>
+                <span>${tx.senderName} (${tx.senderPhone})</span>
+            </div>
+            <div class="flex justify-between py-2 border-b">
+                <span class="text-gray-500">المستلم</span>
+                <span>${tx.receiverName} (${tx.receiverPhone})</span>
+            </div>
+            <div class="flex justify-between py-2 border-b">
+                <span class="text-gray-500">المبلغ</span>
+                <span class="font-bold text-lg">${tx.amount.toLocaleString('ar-EG')} ج.م</span>
+            </div>
+            <div class="flex justify-between py-2 border-b">
+                <span class="text-gray-500">الحالة</span>
+                <span class="px-2 py-1 rounded-full text-xs font-medium ${getStatusClass(tx.status)}">${getStatusLabel(tx.status)}</span>
+            </div>
+            <div class="flex justify-between py-2">
+                <span class="text-gray-500">التاريخ</span>
+                <span>${formatDate(tx.createdAt)}</span>
+            </div>
+        </div>
+        ${tx.status === 'COMPLETED' ? `
+        <div class="mt-6 pt-4 border-t">
+            <button onclick="refundTransaction('${tx.id}')" class="w-full py-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition">
+                ↩️ استرداد المعاملة
+            </button>
+        </div>
+        ` : ''}
+    `;
+    
+    document.getElementById('detailsModal').classList.remove('hidden');
+    document.getElementById('detailsModal').classList.add('flex');
+}
+
+function closeModal() {
+    document.getElementById('detailsModal').classList.add('hidden');
+    document.getElementById('detailsModal').classList.remove('flex');
+}
+
+function refundTransaction(txId) {
+    if (confirm('هل أنت متأكد من استرداد هذه المعاملة؟')) {
+        alert('تم إرسال طلب الاسترداد بنجاح');
+        closeModal();
+    }
+}
+
+function exportTransactions() {
+    alert('جاري تصدير التقرير...');
+    // In production, this would generate a CSV/Excel file
+}
+
+function logout() {
+    localStorage.removeItem('healthpay_admin_token');
+    window.location.href = 'index.html';
+}
+
+function toggleSidebar() {
+    document.querySelector('.sidebar').classList.toggle('open');
+}
+
+// Initialize
+loadTransactions();
+</script>
+</body>
+</html>

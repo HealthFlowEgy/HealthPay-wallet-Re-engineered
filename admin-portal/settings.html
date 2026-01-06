@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>الإعدادات - HealthPay Admin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+        .sidebar { width: 260px; }
+        .main-content { margin-right: 260px; }
+        @media (max-width: 1024px) {
+            .sidebar { transform: translateX(100%); position: fixed; z-index: 50; }
+            .sidebar.open { transform: translateX(0); }
+            .main-content { margin-right: 0; }
+        }
+        .nav-item:hover { background: rgba(245, 158, 11, 0.1); }
+        .nav-item.active { background: rgba(245, 158, 11, 0.15); border-right: 3px solid #f59e0b; }
+    </style>
+</head>
+<body class="bg-gray-100">
+
+<!-- Sidebar -->
+<aside class="sidebar fixed top-0 right-0 h-full bg-white shadow-lg transition-transform duration-300">
+    <div class="p-6 border-b">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl flex items-center justify-center text-white font-bold">HP</div>
+            <div>
+                <h1 class="font-bold text-gray-800">HealthPay</h1>
+                <p class="text-xs text-gray-500">لوحة الإدارة</p>
+            </div>
+        </div>
+    </div>
+    
+    <nav class="p-4">
+        <p class="text-xs text-gray-400 mb-3 px-3">القائمة الرئيسية</p>
+        <a href="dashboard.html" class="nav-item flex items-center gap-3 px-3 py-3 rounded-lg text-gray-700 mb-1">
+            <span>📊</span><span>لوحة التحكم</span>
+        </a>
+        <a href="users.html" class="nav-item flex items-center gap-3 px-3 py-3 rounded-lg text-gray-700 mb-1">
+            <span>👥</span><span>المستخدمين</span>
+        </a>
+        <a href="merchants.html" class="nav-item flex items-center gap-3 px-3 py-3 rounded-lg text-gray-700 mb-1">
+            <span>🏪</span><span>التجار</span>
+        </a>
+        <a href="transactions.html" class="nav-item flex items-center gap-3 px-3 py-3 rounded-lg text-gray-700 mb-1">
+            <span>💳</span><span>المعاملات</span>
+        </a>
+        <a href="service-providers.html" class="nav-item flex items-center gap-3 px-3 py-3 rounded-lg text-gray-700 mb-1">
+            <span>🔌</span><span>مزودي الخدمات</span>
+        </a>
+        <a href="settings.html" class="nav-item active flex items-center gap-3 px-3 py-3 rounded-lg text-gray-700 mb-1">
+            <span>⚙️</span><span>الإعدادات</span>
+        </a>
+    </nav>
+    
+    <div class="absolute bottom-0 left-0 right-0 p-4 border-t">
+        <div class="flex items-center gap-3 mb-3">
+            <div class="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center text-amber-600 font-bold">A</div>
+            <div class="flex-1">
+                <p class="text-sm font-medium text-gray-800" id="adminName">Admin</p>
+                <p class="text-xs text-gray-500" id="adminEmail">admin@healthpay.tech</p>
+            </div>
+        </div>
+        <button onclick="logout()" class="w-full py-2 text-red-600 hover:bg-red-50 rounded-lg text-sm">تسجيل الخروج</button>
+    </div>
+</aside>
+
+<!-- Main Content -->
+<main class="main-content min-h-screen p-6">
+    <div class="max-w-4xl mx-auto">
+        <!-- Header -->
+        <div class="mb-6">
+            <h1 class="text-2xl font-bold text-gray-800">الإعدادات</h1>
+            <p class="text-gray-500">إدارة إعدادات النظام والتطبيق</p>
+        </div>
+
+        <!-- Settings Sections -->
+        <div class="space-y-6">
+            <!-- General Settings -->
+            <div class="bg-white rounded-xl shadow-sm">
+                <div class="p-6 border-b">
+                    <h2 class="text-lg font-bold text-gray-800">الإعدادات العامة</h2>
+                </div>
+                <div class="p-6 space-y-4">
+                    <div class="flex items-center justify-between py-3">
+                        <div>
+                            <p class="font-medium text-gray-800">اسم التطبيق</p>
+                            <p class="text-sm text-gray-500">الاسم المعروض في التطبيق</p>
+                        </div>
+                        <input type="text" value="HealthPay" class="px-4 py-2 border rounded-lg w-48 text-left" dir="ltr">
+                    </div>
+                    <div class="flex items-center justify-between py-3 border-t">
+                        <div>
+                            <p class="font-medium text-gray-800">العملة الافتراضية</p>
+                            <p class="text-sm text-gray-500">العملة المستخدمة في المعاملات</p>
+                        </div>
+                        <select class="px-4 py-2 border rounded-lg">
+                            <option value="EGP" selected>جنيه مصري (EGP)</option>
+                            <option value="USD">دولار أمريكي (USD)</option>
+                            <option value="SAR">ريال سعودي (SAR)</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center justify-between py-3 border-t">
+                        <div>
+                            <p class="font-medium text-gray-800">اللغة الافتراضية</p>
+                            <p class="text-sm text-gray-500">لغة واجهة المستخدم</p>
+                        </div>
+                        <select class="px-4 py-2 border rounded-lg">
+                            <option value="ar" selected>العربية</option>
+                            <option value="en">English</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Transaction Settings -->
+            <div class="bg-white rounded-xl shadow-sm">
+                <div class="p-6 border-b">
+                    <h2 class="text-lg font-bold text-gray-800">إعدادات المعاملات</h2>
+                </div>
+                <div class="p-6 space-y-4">
+                    <div class="flex items-center justify-between py-3">
+                        <div>
+                            <p class="font-medium text-gray-800">الحد الأدنى للتحويل</p>
+                            <p class="text-sm text-gray-500">أقل مبلغ يمكن تحويله</p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <input type="number" value="1" min="1" class="px-4 py-2 border rounded-lg w-24 text-left" dir="ltr">
+                            <span class="text-gray-500">ج.م</span>
+                        </div>
+                    </div>
+                    <div class="flex items-center justify-between py-3 border-t">
+                        <div>
+                            <p class="font-medium text-gray-800">الحد الأقصى للتحويل اليومي</p>
+                            <p class="text-sm text-gray-500">أقصى مبلغ يمكن تحويله في اليوم</p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <input type="number" value="50000" min="100" class="px-4 py-2 border rounded-lg w-32 text-left" dir="ltr">
+                            <span class="text-gray-500">ج.م</span>
+                        </div>
+                    </div>
+                    <div class="flex items-center justify-between py-3 border-t">
+                        <div>
+                            <p class="font-medium text-gray-800">رسوم التحويل</p>
+                            <p class="text-sm text-gray-500">نسبة الرسوم على كل معاملة</p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <input type="number" value="1" min="0" max="10" step="0.1" class="px-4 py-2 border rounded-lg w-24 text-left" dir="ltr">
+                            <span class="text-gray-500">%</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Security Settings -->
+            <div class="bg-white rounded-xl shadow-sm">
+                <div class="p-6 border-b">
+                    <h2 class="text-lg font-bold text-gray-800">إعدادات الأمان</h2>
+                </div>
+                <div class="p-6 space-y-4">
+                    <div class="flex items-center justify-between py-3">
+                        <div>
+                            <p class="font-medium text-gray-800">التحقق بخطوتين</p>
+                            <p class="text-sm text-gray-500">إلزام المستخدمين بالتحقق بخطوتين</p>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" checked class="sr-only peer">
+                            <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+                        </label>
+                    </div>
+                    <div class="flex items-center justify-between py-3 border-t">
+                        <div>
+                            <p class="font-medium text-gray-800">مدة صلاحية OTP</p>
+                            <p class="text-sm text-gray-500">مدة صلاحية رمز التحقق بالدقائق</p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <input type="number" value="5" min="1" max="30" class="px-4 py-2 border rounded-lg w-24 text-left" dir="ltr">
+                            <span class="text-gray-500">دقيقة</span>
+                        </div>
+                    </div>
+                    <div class="flex items-center justify-between py-3 border-t">
+                        <div>
+                            <p class="font-medium text-gray-800">محاولات تسجيل الدخول</p>
+                            <p class="text-sm text-gray-500">عدد المحاولات قبل قفل الحساب</p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <input type="number" value="5" min="3" max="10" class="px-4 py-2 border rounded-lg w-24 text-left" dir="ltr">
+                            <span class="text-gray-500">محاولات</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Notification Settings -->
+            <div class="bg-white rounded-xl shadow-sm">
+                <div class="p-6 border-b">
+                    <h2 class="text-lg font-bold text-gray-800">إعدادات الإشعارات</h2>
+                </div>
+                <div class="p-6 space-y-4">
+                    <div class="flex items-center justify-between py-3">
+                        <div>
+                            <p class="font-medium text-gray-800">إشعارات البريد الإلكتروني</p>
+                            <p class="text-sm text-gray-500">إرسال إشعارات عبر البريد</p>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" checked class="sr-only peer">
+                            <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+                        </label>
+                    </div>
+                    <div class="flex items-center justify-between py-3 border-t">
+                        <div>
+                            <p class="font-medium text-gray-800">إشعارات SMS</p>
+                            <p class="text-sm text-gray-500">إرسال رسائل نصية للمستخدمين</p>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" checked class="sr-only peer">
+                            <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+                        </label>
+                    </div>
+                    <div class="flex items-center justify-between py-3 border-t">
+                        <div>
+                            <p class="font-medium text-gray-800">إشعارات Push</p>
+                            <p class="text-sm text-gray-500">إشعارات التطبيق الفورية</p>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" checked class="sr-only peer">
+                            <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Save Button -->
+            <div class="flex justify-end">
+                <button onclick="saveSettings()" class="px-8 py-3 bg-amber-500 text-white rounded-xl hover:bg-amber-600">
+                    حفظ الإعدادات
+                </button>
+            </div>
+        </div>
+    </div>
+</main>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    checkAuth();
+});
+
+function checkAuth() {
+    const token = localStorage.getItem('healthpay_admin_token');
+    if (!token) {
+        window.location.href = 'index.html';
+        return;
+    }
+    const adminInfo = JSON.parse(localStorage.getItem('healthpay_admin_info') || '{}');
+    if (adminInfo.name) document.getElementById('adminName').textContent = adminInfo.name;
+    if (adminInfo.email) document.getElementById('adminEmail').textContent = adminInfo.email;
+}
+
+function saveSettings() {
+    // In production, this would save to the backend
+    alert('تم حفظ الإعدادات بنجاح');
+}
+
+function logout() {
+    localStorage.removeItem('healthpay_admin_token');
+    localStorage.removeItem('healthpay_admin_info');
+    window.location.href = 'index.html';
+}
+</script>
+
+</body>
+</html>

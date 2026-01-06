@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>إدارة المستخدمين - HealthPay Admin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+        .sidebar { width: 260px; }
+        .main-content { margin-right: 260px; }
+        @media (max-width: 1024px) {
+            .sidebar { transform: translateX(100%); position: fixed; z-index: 50; }
+            .sidebar.open { transform: translateX(0); }
+            .main-content { margin-right: 0; }
+        }
+        .nav-item:hover { background: rgba(245, 158, 11, 0.1); }
+        .nav-item.active { background: rgba(245, 158, 11, 0.15); border-right: 3px solid #f59e0b; }
+        .modal-overlay { background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); }
+        .status-active { background: #d1fae5; color: #065f46; }
+        .status-inactive { background: #fee2e2; color: #991b1b; }
+        .status-pending { background: #fef3c7; color: #92400e; }
+    </style>
+</head>
+<body class="bg-gray-100">
+
+<!-- Sidebar (same as dashboard) -->
+<aside class="sidebar fixed top-0 right-0 h-full bg-white shadow-lg transition-transform duration-300">
+    <div class="p-6 border-b">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl flex items-center justify-center text-white font-bold">HP</div>
+            <div>
+                <h1 class="font-bold text-gray-800">HealthPay</h1>
+                <p class="text-xs text-gray-500">لوحة الإدارة</p>
+            </div>
+        </div>
+    </div>
+    
+    <nav class="p-4">
+        <p class="text-xs text-gray-400 mb-3 px-3">القائمة الرئيسية</p>
+        <a href="dashboard.html" class="nav-item flex items-center gap-3 px-3 py-3 rounded-lg text-gray-700 mb-1">
+            <span>📊</span><span>لوحة التحكم</span>
+        </a>
+        <a href="users.html" class="nav-item active flex items-center gap-3 px-3 py-3 rounded-lg text-gray-700 mb-1">
+            <span>👥</span><span>المستخدمين</span>
+        </a>
+        <a href="merchants.html" class="nav-item flex items-center gap-3 px-3 py-3 rounded-lg text-gray-700 mb-1">
+            <span>🏪</span><span>التجار</span>
+        </a>
+        <a href="transactions.html" class="nav-item flex items-center gap-3 px-3 py-3 rounded-lg text-gray-700 mb-1">
+            <span>💳</span><span>المعاملات</span>
+        </a>
+        <a href="billers.html" class="nav-item flex items-center gap-3 px-3 py-3 rounded-lg text-gray-700 mb-1">
+            <span>📄</span><span>مزودي الخدمات</span>
+        </a>
+        <p class="text-xs text-gray-400 mb-3 mt-6 px-3">الإعدادات</p>
+        <a href="settings.html" class="nav-item flex items-center gap-3 px-3 py-3 rounded-lg text-gray-700 mb-1">
+            <span>⚙️</span><span>الإعدادات</span>
+        </a>
+    </nav>
+    
+    <div class="absolute bottom-0 right-0 left-0 p-4 border-t">
+        <div class="flex items-center gap-3 mb-3">
+            <div class="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center text-amber-600 font-bold">A</div>
+            <div class="flex-1">
+                <p class="text-sm font-medium text-gray-800" id="adminName">Admin</p>
+                <p class="text-xs text-gray-500" id="adminEmail">admin@healthpay.tech</p>
+            </div>
+        </div>
+        <button onclick="logout()" class="w-full py-2 text-red-600 text-sm hover:bg-red-50 rounded-lg transition">تسجيل الخروج</button>
+    </div>
+</aside>
+
+<!-- Main Content -->
+<main class="main-content min-h-screen p-6">
+    <!-- Header -->
+    <div class="flex justify-between items-center mb-8">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-800">إدارة المستخدمين</h1>
+            <p class="text-gray-500">عرض وإدارة حسابات المستخدمين</p>
+        </div>
+        <button onclick="openAddModal()" class="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition flex items-center gap-2">
+            <span>➕</span>
+            إضافة مستخدم
+        </button>
+    </div>
+    
+    <!-- Stats -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div class="bg-white rounded-xl p-4 shadow-sm">
+            <p class="text-2xl font-bold text-gray-800" id="statTotal">0</p>
+            <p class="text-gray-500 text-sm">إجمالي المستخدمين</p>
+        </div>
+        <div class="bg-white rounded-xl p-4 shadow-sm">
+            <p class="text-2xl font-bold text-green-600" id="statActive">0</p>
+            <p class="text-gray-500 text-sm">نشط</p>
+        </div>
+        <div class="bg-white rounded-xl p-4 shadow-sm">
+            <p class="text-2xl font-bold text-amber-600" id="statNew">0</p>
+            <p class="text-gray-500 text-sm">جديد هذا الشهر</p>
+        </div>
+        <div class="bg-white rounded-xl p-4 shadow-sm">
+            <p class="text-2xl font-bold text-blue-600" id="statWithWallet">0</p>
+            <p class="text-gray-500 text-sm">لديهم محفظة</p>
+        </div>
+    </div>
+    
+    <!-- Filters -->
+    <div class="bg-white rounded-xl p-4 shadow-sm mb-6">
+        <div class="flex flex-wrap gap-4">
+            <div class="flex-1 min-w-[200px]">
+                <input type="text" id="searchInput" placeholder="بحث بالاسم أو رقم الهاتف..."
+                       class="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500">
+            </div>
+            <select id="statusFilter" class="px-4 py-2 border border-gray-200 rounded-lg">
+                <option value="">كل الحالات</option>
+                <option value="active">نشط</option>
+                <option value="inactive">غير نشط</option>
+                <option value="pending">معلق</option>
+            </select>
+            <select id="sortBy" class="px-4 py-2 border border-gray-200 rounded-lg">
+                <option value="newest">الأحدث</option>
+                <option value="oldest">الأقدم</option>
+                <option value="name">الاسم</option>
+                <option value="balance">الرصيد</option>
+            </select>
+            <button onclick="loadUsers()" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200">
+                🔍 بحث
+            </button>
+        </div>
+    </div>
+    
+    <!-- Users Table -->
+    <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+        <table class="w-full">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="text-right px-6 py-4 text-sm font-medium text-gray-500">المستخدم</th>
+                    <th class="text-right px-6 py-4 text-sm font-medium text-gray-500">رقم الهاتف</th>
+                    <th class="text-right px-6 py-4 text-sm font-medium text-gray-500">الرصيد</th>
+                    <th class="text-right px-6 py-4 text-sm font-medium text-gray-500">الحالة</th>
+                    <th class="text-right px-6 py-4 text-sm font-medium text-gray-500">تاريخ التسجيل</th>
+                    <th class="text-right px-6 py-4 text-sm font-medium text-gray-500">إجراءات</th>
+                </tr>
+            </thead>
+            <tbody id="usersTable" class="divide-y">
+                <!-- Populated by JS -->
+            </tbody>
+        </table>
+    </div>
+    
+    <!-- Pagination -->
+    <div class="flex justify-between items-center mt-4">
+        <p class="text-sm text-gray-500">عرض <span id="showingCount">0</span> من <span id="totalCount">0</span></p>
+        <div class="flex gap-2">
+            <button onclick="prevPage()" id="prevBtn" class="px-4 py-2 bg-white border rounded-lg hover:bg-gray-50 disabled:opacity-50" disabled>السابق</button>
+            <button onclick="nextPage()" id="nextBtn" class="px-4 py-2 bg-white border rounded-lg hover:bg-gray-50 disabled:opacity-50">التالي</button>
+        </div>
+    </div>
+</main>
+
+<!-- User Detail Modal -->
+<div id="detailModal" class="fixed inset-0 modal-overlay hidden items-center justify-center z-50">
+    <div class="bg-white rounded-2xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+        <div class="p-6 border-b flex justify-between items-center">
+            <h3 class="text-lg font-bold">تفاصيل المستخدم</h3>
+            <button onclick="closeDetailModal()" class="text-gray-400 hover:text-gray-600">✕</button>
+        </div>
+        <div class="p-6" id="detailContent">
+            <!-- Populated by JS -->
+        </div>
+    </div>
+</div>
+
+<!-- Add User Modal -->
+<div id="addModal" class="fixed inset-0 modal-overlay hidden items-center justify-center z-50">
+    <div class="bg-white rounded-2xl w-full max-w-md mx-4">
+        <div class="p-6 border-b flex justify-between items-center">
+            <h3 class="text-lg font-bold">إضافة مستخدم جديد</h3>
+            <button onclick="closeAddModal()" class="text-gray-400 hover:text-gray-600">✕</button>
+        </div>
+        <form onsubmit="addUser(event)" class="p-6 space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">الاسم</label>
+                <input type="text" id="newName" required class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">رقم الهاتف</label>
+                <input type="tel" id="newPhone" required pattern="01[0125][0-9]{8}" placeholder="01xxxxxxxxx"
+                       class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">البريد الإلكتروني (اختياري)</label>
+                <input type="email" id="newEmail" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">الرصيد الافتتاحي</label>
+                <input type="number" id="newBalance" value="0" min="0" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500">
+            </div>
+            <div class="flex gap-3 pt-4">
+                <button type="button" onclick="closeAddModal()" class="flex-1 py-3 border rounded-xl hover:bg-gray-50">إلغاء</button>
+                <button type="submit" class="flex-1 py-3 bg-amber-500 text-white rounded-xl hover:bg-amber-600">إضافة</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Edit User Modal -->
+<div id="editModal" class="fixed inset-0 modal-overlay hidden items-center justify-center z-50">
+    <div class="bg-white rounded-2xl w-full max-w-md mx-4">
+        <div class="p-6 border-b flex justify-between items-center">
+            <h3 class="text-lg font-bold">تعديل بيانات المستخدم</h3>
+            <button onclick="closeEditModal()" class="text-gray-400 hover:text-gray-600">✕</button>
+        </div>
+        <form onsubmit="saveUserEdit(event)" class="p-6 space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">الاسم</label>
+                <input type="text" id="editName" required class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">رقم الهاتف</label>
+                <input type="tel" id="editPhone" readonly class="w-full px-4 py-2 border rounded-lg bg-gray-100">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">البريد الإلكتروني</label>
+                <input type="email" id="editEmail" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">الرصيد</label>
+                <input type="number" id="editBalance" min="0" step="0.01" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500">
+            </div>
+            <div class="flex gap-3 pt-4">
+                <button type="button" onclick="closeEditModal()" class="flex-1 py-3 border rounded-xl hover:bg-gray-50">إلغاء</button>
+                <button type="submit" class="flex-1 py-3 bg-amber-500 text-white rounded-xl hover:bg-amber-600">حفظ التعديلات</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+// ============================================
+// Configuration & State
+// ============================================
+const API_CONFIG = {
+    endpoint: window.location.hostname === 'localhost' 
+        ? 'http://localhost:4000/graphql'
+        : 'http://104.248.245.150:4000/graphql'
+};
+
+let users = [];
+let currentPage = 1;
+const pageSize = 10;
+
+// ============================================
+// Initialize
+// ============================================
+document.addEventListener('DOMContentLoaded', () => {
+    checkAuth();
+    loadUsers();
+    
+    document.getElementById('searchInput').addEventListener('input', debounce(filterUsers, 300));
+    document.getElementById('statusFilter').addEventListener('change', filterUsers);
+    document.getElementById('sortBy').addEventListener('change', filterUsers);
+});
+
+function checkAuth() {
+    const token = localStorage.getItem('healthpay_admin_token');
+    if (!token) {
+        window.location.href = 'index.html';
+        return;
+    }
+    const adminInfo = JSON.parse(localStorage.getItem('healthpay_admin_info') || '{}');
+    if (adminInfo.name) document.getElementById('adminName').textContent = adminInfo.name;
+    if (adminInfo.email) document.getElementById('adminEmail').textContent = adminInfo.email;
+}
+
+function debounce(func, wait) {
+    let timeout;
+    return function(...args) {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func.apply(this, args), wait);
+    };
+}
+
+// ============================================
+// Load Users
+// ============================================
+async function loadUsers() {
+    // Mock data for now
+    users = [
+        { id: 'usr-001', name: 'محمد أحمد', phone: '01012345678', email: 'mohamed@example.com', balance: 5000, status: 'active', createdAt: '2025-12-15T10:00:00Z', lastActive: '2026-01-02T09:30:00Z', transactionCount: 25 },
+        { id: 'usr-002', name: 'سارة محمود', phone: '01123456789', email: 'sara@example.com', balance: 3500, status: 'active', createdAt: '2025-12-20T14:00:00Z', lastActive: '2026-01-01T18:00:00Z', transactionCount: 18 },
+        { id: 'usr-003', name: 'أحمد حسن', phone: '01234567890', email: null, balance: 1200, status: 'active', createdAt: '2025-12-25T09:00:00Z', lastActive: '2025-12-30T12:00:00Z', transactionCount: 8 },
+        { id: 'usr-004', name: 'فاطمة علي', phone: '01098765432', email: 'fatma@example.com', balance: 8500, status: 'active', createdAt: '2025-11-10T11:00:00Z', lastActive: '2026-01-02T08:00:00Z', transactionCount: 42 },
+        { id: 'usr-005', name: 'علي محمد', phone: '01111111111', email: null, balance: 0, status: 'inactive', createdAt: '2025-10-05T16:00:00Z', lastActive: '2025-11-15T10:00:00Z', transactionCount: 3 },
+        { id: 'usr-006', name: 'نور الدين', phone: '01222222222', email: 'nour@example.com', balance: 2300, status: 'active', createdAt: '2026-01-01T08:00:00Z', lastActive: '2026-01-02T10:00:00Z', transactionCount: 5 },
+        { id: 'usr-007', name: 'مريم عبدالله', phone: '01555555555', email: 'mariam@example.com', balance: 15000, status: 'active', createdAt: '2025-09-20T13:00:00Z', lastActive: '2026-01-02T07:00:00Z', transactionCount: 67 },
+        { id: 'usr-008', name: 'يوسف إبراهيم', phone: '01666666666', email: null, balance: 450, status: 'pending', createdAt: '2026-01-02T06:00:00Z', lastActive: null, transactionCount: 0 },
+        { id: 'usr-009', name: 'هدى سعيد', phone: '01777777777', email: 'huda@example.com', balance: 6800, status: 'active', createdAt: '2025-12-01T10:00:00Z', lastActive: '2025-12-28T15:00:00Z', transactionCount: 31 },
+        { id: 'usr-010', name: 'كريم حسين', phone: '01888888888', email: 'karim@example.com', balance: 920, status: 'inactive', createdAt: '2025-11-25T09:00:00Z', lastActive: '2025-12-10T11:00:00Z', transactionCount: 7 }
+    ];
+    
+    updateStats();
+    filterUsers();
+}
+
+function updateStats() {
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    
+    document.getElementById('statTotal').textContent = users.length;
+    document.getElementById('statActive').textContent = users.filter(u => u.status === 'active').length;
+    document.getElementById('statNew').textContent = users.filter(u => new Date(u.createdAt) >= monthStart).length;
+    document.getElementById('statWithWallet').textContent = users.filter(u => u.balance > 0).length;
+}
+
+// ============================================
+// Filter & Render
+// ============================================
+function filterUsers() {
+    const search = document.getElementById('searchInput').value.toLowerCase();
+    const status = document.getElementById('statusFilter').value;
+    const sortBy = document.getElementById('sortBy').value;
+    
+    let filtered = users.filter(u => {
+        const matchSearch = !search || u.name.toLowerCase().includes(search) || u.phone.includes(search);
+        const matchStatus = !status || u.status === status;
+        return matchSearch && matchStatus;
+    });
+    
+    // Sort
+    filtered.sort((a, b) => {
+        switch (sortBy) {
+            case 'oldest': return new Date(a.createdAt) - new Date(b.createdAt);
+            case 'name': return a.name.localeCompare(b.name, 'ar');
+            case 'balance': return b.balance - a.balance;
+            default: return new Date(b.createdAt) - new Date(a.createdAt);
+        }
+    });
+    
+    renderUsers(filtered);
+}
+
+function renderUsers(filtered) {
+    const start = (currentPage - 1) * pageSize;
+    const end = start + pageSize;
+    const pageUsers = filtered.slice(start, end);
+    
+    const tbody = document.getElementById('usersTable');
+    tbody.innerHTML = pageUsers.map(u => `
+        <tr class="hover:bg-gray-50 cursor-pointer" onclick="showUserDetail('${u.id}')">
+            <td class="px-6 py-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center text-amber-600 font-bold">
+                        ${u.name.charAt(0)}
+                    </div>
+                    <div>
+                        <p class="font-medium text-gray-800">${u.name}</p>
+                        <p class="text-xs text-gray-500">${u.email || '-'}</p>
+                    </div>
+                </div>
+            </td>
+            <td class="px-6 py-4 text-gray-600">${u.phone}</td>
+            <td class="px-6 py-4 font-medium">${u.balance.toLocaleString('ar-EG')} ج.م</td>
+            <td class="px-6 py-4">
+                <span class="px-2 py-1 rounded-full text-xs status-${u.status}">
+                    ${u.status === 'active' ? 'نشط' : u.status === 'inactive' ? 'غير نشط' : 'معلق'}
+                </span>
+            </td>
+            <td class="px-6 py-4 text-gray-500 text-sm">${formatDate(u.createdAt)}</td>
+            <td class="px-6 py-4">
+                <div class="flex gap-2">
+                    <button onclick="event.stopPropagation(); editUser('${u.id}')" class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg">✏️</button>
+                    <button onclick="event.stopPropagation(); toggleStatus('${u.id}')" class="p-2 text-amber-600 hover:bg-amber-50 rounded-lg">
+                        ${u.status === 'active' ? '🔒' : '🔓'}
+                    </button>
+                </div>
+            </td>
+        </tr>
+    `).join('');
+    
+    // Update pagination
+    document.getElementById('showingCount').textContent = pageUsers.length;
+    document.getElementById('totalCount').textContent = filtered.length;
+    document.getElementById('prevBtn').disabled = currentPage === 1;
+    document.getElementById('nextBtn').disabled = end >= filtered.length;
+}
+
+function formatDate(dateStr) {
+    if (!dateStr) return '-';
+    return new Date(dateStr).toLocaleDateString('ar-EG', { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+// ============================================
+// Pagination
+// ============================================
+function prevPage() {
+    if (currentPage > 1) {
+        currentPage--;
+        filterUsers();
+    }
+}
+
+function nextPage() {
+    currentPage++;
+    filterUsers();
+}
+
+// ============================================
+// Modals
+// ============================================
+function showUserDetail(id) {
+    const user = users.find(u => u.id === id);
+    if (!user) return;
+    
+    document.getElementById('detailContent').innerHTML = `
+        <div class="text-center mb-6">
+            <div class="w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center text-amber-600 text-3xl font-bold mx-auto mb-3">
+                ${user.name.charAt(0)}
+            </div>
+            <h3 class="text-xl font-bold text-gray-800">${user.name}</h3>
+            <p class="text-gray-500">${user.phone}</p>
+        </div>
+        
+        <div class="space-y-4">
+            <div class="flex justify-between py-3 border-b">
+                <span class="text-gray-500">البريد الإلكتروني</span>
+                <span class="text-gray-800">${user.email || '-'}</span>
+            </div>
+            <div class="flex justify-between py-3 border-b">
+                <span class="text-gray-500">الرصيد</span>
+                <span class="font-bold text-green-600">${user.balance.toLocaleString('ar-EG')} ج.م</span>
+            </div>
+            <div class="flex justify-between py-3 border-b">
+                <span class="text-gray-500">الحالة</span>
+                <span class="px-2 py-1 rounded-full text-xs status-${user.status}">
+                    ${user.status === 'active' ? 'نشط' : user.status === 'inactive' ? 'غير نشط' : 'معلق'}
+                </span>
+            </div>
+            <div class="flex justify-between py-3 border-b">
+                <span class="text-gray-500">عدد المعاملات</span>
+                <span class="text-gray-800">${user.transactionCount}</span>
+            </div>
+            <div class="flex justify-between py-3 border-b">
+                <span class="text-gray-500">تاريخ التسجيل</span>
+                <span class="text-gray-800">${formatDate(user.createdAt)}</span>
+            </div>
+            <div class="flex justify-between py-3">
+                <span class="text-gray-500">آخر نشاط</span>
+                <span class="text-gray-800">${user.lastActive ? formatDate(user.lastActive) : 'لم يسجل دخول'}</span>
+            </div>
+        </div>
+        
+        <div class="flex gap-3 mt-6">
+            <button onclick="viewTransactions('${user.id}')" class="flex-1 py-3 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-100">
+                💳 المعاملات
+            </button>
+            <button onclick="editUser('${user.id}')" class="flex-1 py-3 bg-amber-50 text-amber-600 rounded-xl hover:bg-amber-100">
+                ✏️ تعديل
+            </button>
+        </div>
+    `;
+    
+    document.getElementById('detailModal').classList.remove('hidden');
+    document.getElementById('detailModal').classList.add('flex');
+}
+
+function closeDetailModal() {
+    document.getElementById('detailModal').classList.add('hidden');
+    document.getElementById('detailModal').classList.remove('flex');
+}
+
+function openAddModal() {
+    document.getElementById('addModal').classList.remove('hidden');
+    document.getElementById('addModal').classList.add('flex');
+}
+
+function closeAddModal() {
+    document.getElementById('addModal').classList.add('hidden');
+    document.getElementById('addModal').classList.remove('flex');
+    document.getElementById('newName').value = '';
+    document.getElementById('newPhone').value = '';
+    document.getElementById('newEmail').value = '';
+    document.getElementById('newBalance').value = '0';
+}
+
+// ============================================
+// Actions
+// ============================================
+async function addUser(event) {
+    event.preventDefault();
+    
+    const name = document.getElementById('newName').value;
+    const phoneNumber = document.getElementById('newPhone').value;
+    const email = document.getElementById('newEmail').value || null;
+    const initialBalance = parseFloat(document.getElementById('newBalance').value) || 0;
+    
+    const token = localStorage.getItem('healthpay_admin_token');
+    
+    try {
+        const response = await fetch('http://104.248.245.150:4000/graphql', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': token ? `Bearer ${token}` : ''
+            },
+            body: JSON.stringify({
+                query: `mutation AdminCreateUser($input: AdminCreateUserInput!) {
+                    adminCreateUser(input: $input) { id name phoneNumber }
+                }`,
+                variables: { input: { fullName: name, phone: phoneNumber, email } }
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.data?.adminCreateUser?.id) {
+            // Refresh the page to show new user
+            closeAddModal();
+            alert('تم إضافة المستخدم بنجاح');
+            location.reload();
+        } else {
+            alert('خطأ: ' + (result.data?.adminCreateUser?.message || result.errors?.[0]?.message || 'فشل في إضافة المستخدم'));
+        }
+    } catch (error) {
+        console.error('Error adding user:', error);
+        alert('حدث خطأ أثناء إضافة المستخدم');
+    }
+}
+
+let editingUserId = null;
+
+function editUser(id) {
+    const user = users.find(u => u.id === id);
+    if (!user) {
+        alert('المستخدم غير موجود');
+        return;
+    }
+    
+    editingUserId = id;
+    document.getElementById('editName').value = user.name || '';
+    document.getElementById('editPhone').value = user.phone || '';
+    document.getElementById('editEmail').value = user.email || '';
+    document.getElementById('editBalance').value = user.balance || 0;
+    document.getElementById('editModal').classList.remove('hidden');
+}
+
+function closeEditModal() {
+    document.getElementById('editModal').classList.add('hidden');
+    editingUserId = null;
+}
+
+async function saveUserEdit(event) {
+    event.preventDefault();
+    if (!editingUserId) return;
+    
+    const name = document.getElementById('editName').value;
+    const email = document.getElementById('editEmail').value || null;
+    const balance = parseFloat(document.getElementById('editBalance').value) || 0;
+    
+    const token = localStorage.getItem('healthpay_admin_token');
+    
+    try {
+        const response = await fetch('http://104.248.245.150:4000/graphql', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': token ? `Bearer ${token}` : ''
+            },
+            body: JSON.stringify({
+                query: `mutation AdminUpdateUser($id: ID!, $input: AdminUpdateUserInput!) {
+                    adminUpdateUser(id: $id, input: $input) {
+                        success
+                        message
+                        user { id phoneNumber name email wallet { balance } }
+                    }
+                }`,
+                variables: { id: editingUserId, input: { name, email, balance } }
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.data?.adminUpdateUser?.success) {
+            const index = users.findIndex(u => u.id === editingUserId);
+            if (index !== -1) {
+                users[index] = { ...users[index], name, email, balance };
+            }
+            updateStats();
+            filterUsers();
+            closeEditModal();
+            alert('تم تحديث بيانات المستخدم بنجاح');
+        } else {
+            alert('خطأ: ' + (result.data?.adminUpdateUser?.message || 'فشل في تحديث المستخدم'));
+        }
+    } catch (error) {
+        console.error('Error updating user:', error);
+        alert('حدث خطأ أثناء تحديث المستخدم');
+    }
+}
+
+function toggleStatus(id) {
+    const user = users.find(u => u.id === id);
+    if (user) {
+        user.status = user.status === 'active' ? 'inactive' : 'active';
+        updateStats();
+        filterUsers();
+    }
+}
+
+function viewTransactions(userId) {
+    window.location.href = `transactions.html?userId=${userId}`;
+}
+
+function logout() {
+    localStorage.removeItem('healthpay_admin_token');
+    localStorage.removeItem('healthpay_admin_info');
+    window.location.href = 'index.html';
+}
+</script>
+
+</body>
+</html>

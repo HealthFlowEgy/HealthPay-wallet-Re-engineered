@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لوحة التحكم - HealthPay Admin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+        .sidebar { width: 260px; }
+        .main-content { margin-right: 260px; }
+        @media (max-width: 1024px) {
+            .sidebar { transform: translateX(100%); position: fixed; z-index: 50; }
+            .sidebar.open { transform: translateX(0); }
+            .main-content { margin-right: 0; }
+        }
+        .stat-card:hover { transform: translateY(-2px); box-shadow: 0 10px 40px rgba(0,0,0,0.1); }
+        .nav-item:hover { background: rgba(245, 158, 11, 0.1); }
+        .nav-item.active { background: rgba(245, 158, 11, 0.15); border-right: 3px solid #f59e0b; }
+    </style>
+</head>
+<body class="bg-gray-100">
+
+<!-- Sidebar -->
+<aside class="sidebar fixed top-0 right-0 h-full bg-white shadow-lg transition-transform duration-300">
+    <div class="p-6 border-b">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl flex items-center justify-center text-white font-bold">
+                HP
+            </div>
+            <div>
+                <h1 class="font-bold text-gray-800">HealthPay</h1>
+                <p class="text-xs text-gray-500">لوحة الإدارة</p>
+            </div>
+        </div>
+    </div>
+    
+    <nav class="p-4">
+        <p class="text-xs text-gray-400 mb-3 px-3">القائمة الرئيسية</p>
+        
+        <a href="dashboard.html" class="nav-item active flex items-center gap-3 px-3 py-3 rounded-lg text-gray-700 mb-1">
+            <span>📊</span>
+            <span>لوحة التحكم</span>
+        </a>
+        
+        <a href="users.html" class="nav-item flex items-center gap-3 px-3 py-3 rounded-lg text-gray-700 mb-1">
+            <span>👥</span>
+            <span>المستخدمين</span>
+        </a>
+        
+        <a href="merchants.html" class="nav-item flex items-center gap-3 px-3 py-3 rounded-lg text-gray-700 mb-1">
+            <span>🏪</span>
+            <span>التجار</span>
+        </a>
+        
+        <a href="transactions.html" class="nav-item flex items-center gap-3 px-3 py-3 rounded-lg text-gray-700 mb-1">
+            <span>💳</span>
+            <span>المعاملات</span>
+        </a>
+        
+        <a href="billers.html" class="nav-item flex items-center gap-3 px-3 py-3 rounded-lg text-gray-700 mb-1">
+            <span>📄</span>
+            <span>مزودي الخدمات</span>
+        </a>
+        
+        <p class="text-xs text-gray-400 mb-3 mt-6 px-3">الإعدادات</p>
+        
+        <a href="settings.html" class="nav-item flex items-center gap-3 px-3 py-3 rounded-lg text-gray-700 mb-1">
+            <span>⚙️</span>
+            <span>الإعدادات</span>
+        </a>
+        
+        <a href="logs.html" class="nav-item flex items-center gap-3 px-3 py-3 rounded-lg text-gray-700 mb-1">
+            <span>📋</span>
+            <span>سجل النظام</span>
+        </a>
+    </nav>
+    
+    <div class="absolute bottom-0 right-0 left-0 p-4 border-t">
+        <div class="flex items-center gap-3 mb-3">
+            <div class="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center text-amber-600 font-bold">
+                A
+            </div>
+            <div class="flex-1">
+                <p class="text-sm font-medium text-gray-800" id="adminName">Admin</p>
+                <p class="text-xs text-gray-500" id="adminEmail">admin@healthpay.tech</p>
+            </div>
+        </div>
+        <button onclick="logout()" class="w-full py-2 text-red-600 text-sm hover:bg-red-50 rounded-lg transition">
+            تسجيل الخروج
+        </button>
+    </div>
+</aside>
+
+<!-- Mobile Menu Toggle -->
+<button onclick="toggleSidebar()" class="lg:hidden fixed top-4 right-4 z-50 p-2 bg-white rounded-lg shadow-lg">
+    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+    </svg>
+</button>
+
+<!-- Main Content -->
+<main class="main-content min-h-screen p-6">
+    <!-- Header -->
+    <div class="flex justify-between items-center mb-8">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-800">لوحة التحكم</h1>
+            <p class="text-gray-500">مرحباً بك في لوحة إدارة HealthPay</p>
+        </div>
+        <div class="flex items-center gap-4">
+            <span class="text-sm text-gray-500" id="currentDate"></span>
+            <button class="p-2 bg-white rounded-lg shadow hover:shadow-md transition">
+                <span>🔔</span>
+            </button>
+        </div>
+    </div>
+    
+    <!-- Stats Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div class="stat-card bg-white rounded-2xl p-6 shadow-sm transition-all cursor-pointer" onclick="location.href='users.html'">
+            <div class="flex items-center justify-between mb-4">
+                <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
+                    <span class="text-2xl">👥</span>
+                </div>
+                <span class="text-green-500 text-sm font-medium">+12%</span>
+            </div>
+            <p class="text-3xl font-bold text-gray-800" id="statUsers">-</p>
+            <p class="text-gray-500 text-sm">إجمالي المستخدمين</p>
+        </div>
+        
+        <div class="stat-card bg-white rounded-2xl p-6 shadow-sm transition-all cursor-pointer" onclick="location.href='merchants.html'">
+            <div class="flex items-center justify-between mb-4">
+                <div class="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center">
+                    <span class="text-2xl">🏪</span>
+                </div>
+                <span class="text-green-500 text-sm font-medium">+8%</span>
+            </div>
+            <p class="text-3xl font-bold text-gray-800" id="statMerchants">-</p>
+            <p class="text-gray-500 text-sm">التجار النشطين</p>
+        </div>
+        
+        <div class="stat-card bg-white rounded-2xl p-6 shadow-sm transition-all cursor-pointer" onclick="location.href='transactions.html'">
+            <div class="flex items-center justify-between mb-4">
+                <div class="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
+                    <span class="text-2xl">💰</span>
+                </div>
+                <span class="text-green-500 text-sm font-medium">+23%</span>
+            </div>
+            <p class="text-3xl font-bold text-gray-800" id="statRevenue">-</p>
+            <p class="text-gray-500 text-sm">إجمالي الإيرادات</p>
+        </div>
+        
+        <div class="stat-card bg-white rounded-2xl p-6 shadow-sm transition-all">
+            <div class="flex items-center justify-between mb-4">
+                <div class="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
+                    <span class="text-2xl">📊</span>
+                </div>
+                <span class="text-green-500 text-sm font-medium">+15%</span>
+            </div>
+            <p class="text-3xl font-bold text-gray-800" id="statTransactions">-</p>
+            <p class="text-gray-500 text-sm">المعاملات اليوم</p>
+        </div>
+    </div>
+    
+    <!-- Charts Row -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+        <!-- Revenue Chart -->
+        <div class="lg:col-span-2 bg-white rounded-2xl p-6 shadow-sm">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-lg font-bold text-gray-800">الإيرادات</h2>
+                <select id="chartPeriod" onchange="updateChart()" class="px-3 py-1 border rounded-lg text-sm">
+                    <option value="7">آخر 7 أيام</option>
+                    <option value="30">آخر 30 يوم</option>
+                    <option value="90">آخر 3 أشهر</option>
+                </select>
+            </div>
+            <canvas id="revenueChart" height="120"></canvas>
+        </div>
+        
+        <!-- Transaction Types -->
+        <div class="bg-white rounded-2xl p-6 shadow-sm">
+            <h2 class="text-lg font-bold text-gray-800 mb-6">أنواع المعاملات</h2>
+            <canvas id="typesChart" height="200"></canvas>
+            <div class="mt-4 space-y-2" id="typesLegend"></div>
+        </div>
+    </div>
+    
+    <!-- Tables Row -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Recent Transactions -->
+        <div class="bg-white rounded-2xl p-6 shadow-sm">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-lg font-bold text-gray-800">آخر المعاملات</h2>
+                <a href="transactions.html" class="text-amber-600 text-sm hover:underline">عرض الكل</a>
+            </div>
+            <div class="space-y-3" id="recentTransactions">
+                <!-- Will be populated by JS -->
+            </div>
+        </div>
+        
+        <!-- Recent Users -->
+        <div class="bg-white rounded-2xl p-6 shadow-sm">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-lg font-bold text-gray-800">المستخدمين الجدد</h2>
+                <a href="users.html" class="text-amber-600 text-sm hover:underline">عرض الكل</a>
+            </div>
+            <div class="space-y-3" id="recentUsers">
+                <!-- Will be populated by JS -->
+            </div>
+        </div>
+    </div>
+    
+    <!-- Quick Actions -->
+    <div class="mt-8 bg-white rounded-2xl p-6 shadow-sm">
+        <h2 class="text-lg font-bold text-gray-800 mb-4">إجراءات سريعة</h2>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <button onclick="location.href='users.html?action=add'" class="p-4 bg-blue-50 rounded-xl text-center hover:bg-blue-100 transition">
+                <span class="text-2xl block mb-2">➕</span>
+                <span class="text-sm text-gray-700">إضافة مستخدم</span>
+            </button>
+            <button onclick="location.href='merchants.html?action=add'" class="p-4 bg-amber-50 rounded-xl text-center hover:bg-amber-100 transition">
+                <span class="text-2xl block mb-2">🏪</span>
+                <span class="text-sm text-gray-700">إضافة تاجر</span>
+            </button>
+            <button onclick="location.href='billers.html'" class="p-4 bg-green-50 rounded-xl text-center hover:bg-green-100 transition">
+                <span class="text-2xl block mb-2">📄</span>
+                <span class="text-sm text-gray-700">إدارة الفواتير</span>
+            </button>
+            <button onclick="exportReport()" class="p-4 bg-purple-50 rounded-xl text-center hover:bg-purple-100 transition">
+                <span class="text-2xl block mb-2">📊</span>
+                <span class="text-sm text-gray-700">تصدير تقرير</span>
+            </button>
+        </div>
+    </div>
+</main>
+
+<script>
+// ============================================
+// Configuration
+// ============================================
+const API_CONFIG = {
+    endpoint: window.location.hostname === 'localhost' 
+        ? 'http://localhost:4000/graphql'
+        : 'http://104.248.245.150:4000/graphql'
+};
+
+// ============================================
+// Charts
+// ============================================
+let revenueChart = null;
+let typesChart = null;
+
+// ============================================
+// Initialize
+// ============================================
+document.addEventListener('DOMContentLoaded', () => {
+    checkAuth();
+    setCurrentDate();
+    loadDashboardData();
+    initCharts();
+});
+
+function checkAuth() {
+    const token = localStorage.getItem('healthpay_admin_token');
+    if (!token) {
+        window.location.href = 'index.html';
+        return;
+    }
+    
+    // Load admin info
+    const adminInfo = JSON.parse(localStorage.getItem('healthpay_admin_info') || '{}');
+    if (adminInfo.name) {
+        document.getElementById('adminName').textContent = adminInfo.name;
+    }
+    if (adminInfo.email) {
+        document.getElementById('adminEmail').textContent = adminInfo.email;
+    }
+}
+
+function setCurrentDate() {
+    const now = new Date();
+    const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+    document.getElementById('currentDate').textContent = now.toLocaleDateString('ar-EG', options);
+}
+
+// ============================================
+// Load Data
+// ============================================
+async function loadDashboardData() {
+    try {
+        // For now, use mock data since we don't have admin dashboard query
+        const mockData = {
+            users: 1247,
+            merchants: 89,
+            revenue: 2450000,
+            transactions: 156,
+            recentTransactions: [
+                { id: 'TXN-001', customer: 'محمد أحمد', amount: 350, status: 'completed', time: '10:30' },
+                { id: 'TXN-002', customer: 'سارة محمود', amount: 520, status: 'completed', time: '10:15' },
+                { id: 'TXN-003', customer: 'أحمد حسن', amount: 180, status: 'pending', time: '10:00' },
+                { id: 'TXN-004', customer: 'فاطمة علي', amount: 890, status: 'completed', time: '09:45' },
+                { id: 'TXN-005', customer: 'علي محمد', amount: 245, status: 'failed', time: '09:30' }
+            ],
+            recentUsers: [
+                { name: 'محمد علي', phone: '01012345678', date: 'اليوم' },
+                { name: 'سارة أحمد', phone: '01123456789', date: 'اليوم' },
+                { name: 'أحمد حسن', phone: '01234567890', date: 'أمس' },
+                { name: 'فاطمة محمود', phone: '01098765432', date: 'أمس' },
+                { name: 'يوسف عبدالله', phone: '01111111111', date: 'قبل يومين' }
+            ]
+        };
+        
+        updateStats(mockData);
+        renderRecentTransactions(mockData.recentTransactions);
+        renderRecentUsers(mockData.recentUsers);
+        
+    } catch (error) {
+        console.error('Error loading dashboard:', error);
+    }
+}
+
+function updateStats(data) {
+    document.getElementById('statUsers').textContent = data.users.toLocaleString('ar-EG');
+    document.getElementById('statMerchants').textContent = data.merchants.toLocaleString('ar-EG');
+    document.getElementById('statRevenue').textContent = formatCurrency(data.revenue);
+    document.getElementById('statTransactions').textContent = data.transactions.toLocaleString('ar-EG');
+}
+
+function formatCurrency(amount) {
+    if (amount >= 1000000) {
+        return (amount / 1000000).toFixed(1) + 'M ج.م';
+    } else if (amount >= 1000) {
+        return (amount / 1000).toFixed(0) + 'K ج.م';
+    }
+    return amount.toLocaleString('ar-EG') + ' ج.م';
+}
+
+// ============================================
+// Render Functions
+// ============================================
+function renderRecentTransactions(transactions) {
+    const container = document.getElementById('recentTransactions');
+    container.innerHTML = transactions.map(tx => `
+        <div class="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center text-amber-600 font-bold">
+                    ${tx.customer.charAt(0)}
+                </div>
+                <div>
+                    <p class="font-medium text-gray-800">${tx.customer}</p>
+                    <p class="text-xs text-gray-500">${tx.id} • ${tx.time}</p>
+                </div>
+            </div>
+            <div class="text-left">
+                <p class="font-bold ${tx.status === 'completed' ? 'text-green-600' : tx.status === 'failed' ? 'text-red-600' : 'text-amber-600'}">
+                    ${tx.amount.toLocaleString('ar-EG')} ج.م
+                </p>
+                <p class="text-xs ${tx.status === 'completed' ? 'text-green-500' : tx.status === 'failed' ? 'text-red-500' : 'text-amber-500'}">
+                    ${tx.status === 'completed' ? 'مكتمل' : tx.status === 'failed' ? 'فشل' : 'معلق'}
+                </p>
+            </div>
+        </div>
+    `).join('');
+}
+
+function renderRecentUsers(users) {
+    const container = document.getElementById('recentUsers');
+    container.innerHTML = users.map(user => `
+        <div class="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold">
+                    ${user.name.charAt(0)}
+                </div>
+                <div>
+                    <p class="font-medium text-gray-800">${user.name}</p>
+                    <p class="text-xs text-gray-500">${user.phone}</p>
+                </div>
+            </div>
+            <span class="text-xs text-gray-400">${user.date}</span>
+        </div>
+    `).join('');
+}
+
+// ============================================
+// Charts
+// ============================================
+function initCharts() {
+    // Revenue Chart
+    const revenueCtx = document.getElementById('revenueChart').getContext('2d');
+    revenueChart = new Chart(revenueCtx, {
+        type: 'line',
+        data: {
+            labels: ['السبت', 'الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة'],
+            datasets: [{
+                label: 'الإيرادات',
+                data: [45000, 52000, 48000, 61000, 55000, 67000, 72000],
+                borderColor: '#f59e0b',
+                backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                fill: true,
+                tension: 0.4
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: value => (value / 1000) + 'K'
+                    }
+                }
+            }
+        }
+    });
+    
+    // Types Chart
+    const typesCtx = document.getElementById('typesChart').getContext('2d');
+    const typesData = [
+        { label: 'طلبات الدفع', value: 45, color: '#f59e0b' },
+        { label: 'QR كود', value: 25, color: '#3b82f6' },
+        { label: 'API', value: 20, color: '#10b981' },
+        { label: 'فواتير', value: 10, color: '#8b5cf6' }
+    ];
+    
+    typesChart = new Chart(typesCtx, {
+        type: 'doughnut',
+        data: {
+            labels: typesData.map(d => d.label),
+            datasets: [{
+                data: typesData.map(d => d.value),
+                backgroundColor: typesData.map(d => d.color),
+                borderWidth: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { display: false }
+            },
+            cutout: '70%'
+        }
+    });
+    
+    // Legend
+    document.getElementById('typesLegend').innerHTML = typesData.map(d => `
+        <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+                <div class="w-3 h-3 rounded-full" style="background: ${d.color}"></div>
+                <span class="text-sm text-gray-600">${d.label}</span>
+            </div>
+            <span class="text-sm font-medium">${d.value}%</span>
+        </div>
+    `).join('');
+}
+
+function updateChart() {
+    const period = document.getElementById('chartPeriod').value;
+    // In production, fetch data for the selected period
+    console.log('Update chart for period:', period);
+}
+
+// ============================================
+// Actions
+// ============================================
+function toggleSidebar() {
+    document.querySelector('.sidebar').classList.toggle('open');
+}
+
+function logout() {
+    localStorage.removeItem('healthpay_admin_token');
+    localStorage.removeItem('healthpay_admin_info');
+    window.location.href = 'index.html';
+}
+
+function exportReport() {
+    alert('سيتم تصدير التقرير...');
+}
+</script>
+
+</body>
+</html>

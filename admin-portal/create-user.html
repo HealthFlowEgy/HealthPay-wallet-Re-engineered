@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>إنشاء مستخدم جديد - لوحة التحكم</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+        .spinner { border: 3px solid #f3f3f3; border-top: 3px solid #6366f1; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; display: inline-block; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        .upload-zone { transition: all 0.3s; border: 2px dashed #e5e7eb; }
+        .upload-zone:hover { border-color: #6366f1; background-color: #f5f3ff; }
+        .upload-zone.dragover { border-color: #6366f1; background-color: #eef2ff; }
+        .upload-zone.has-file { border-style: solid; border-color: #10b981; }
+        
+        /* Toggle Switch */
+        .toggle-switch { position: relative; width: 52px; height: 28px; }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        .toggle-slider { position: absolute; cursor: pointer; inset: 0; background-color: #e5e7eb; transition: 0.3s; border-radius: 28px; }
+        .toggle-slider:before { position: absolute; content: ""; height: 22px; width: 22px; right: 3px; bottom: 3px; background-color: white; transition: 0.3s; border-radius: 50%; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+        input:checked + .toggle-slider { background: linear-gradient(135deg, #10b981 0%, #059669 100%); }
+        input:checked + .toggle-slider:before { transform: translateX(-24px); }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+
+<!-- Main Content -->
+<div id="main">
+    <!-- Header -->
+    <header class="bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg">
+        <div class="max-w-4xl mx-auto px-4 py-6">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-4">
+                    <a href="/admin/users.html" class="text-white hover:text-indigo-200 transition-colors">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                        </svg>
+                    </a>
+                    <div>
+                        <h1 class="text-2xl font-bold">👤 إنشاء مستخدم جديد</h1>
+                        <p class="text-indigo-200 text-sm">إضافة حساب مستخدم يدوياً</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-4xl mx-auto px-4 py-8">
+        <!-- Alert Messages -->
+        <div id="successAlert" class="hidden bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-xl mb-6 flex items-center gap-3">
+            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+            </svg>
+            <span id="successMessage">تم إنشاء المستخدم بنجاح</span>
+        </div>
+
+        <div id="errorAlert" class="hidden bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-6 flex items-center gap-3">
+            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+            </svg>
+            <span id="errorMessage">حدث خطأ</span>
+        </div>
+
+        <form id="createUserForm" onsubmit="return createUser(event)">
+            <!-- Basic Info -->
+            <div class="bg-white rounded-2xl shadow-lg overflow-hidden mb-6">
+                <div class="px-6 py-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-b">
+                    <h2 class="text-lg font-bold text-gray-800">📋 المعلومات الأساسية</h2>
+                </div>
+
+                <div class="p-6">
+                    <!-- Avatar -->
+                    <div class="flex justify-center mb-6">
+                        <div class="relative">
+                            <div id="avatarPreview" class="w-24 h-24 bg-gradient-to-br from-indigo-400 to-purple-500 rounded-full flex items-center justify-center text-white text-3xl font-bold">
+                                ?
+                            </div>
+                            <label class="absolute bottom-0 right-0 w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center cursor-pointer hover:bg-indigo-700 transition-colors">
+                                <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/>
+                                </svg>
+                                <input type="file" id="avatarInput" accept="image/*" class="hidden" onchange="previewAvatar(this)">
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- First Name -->
+                        <div>
+                            <label class="block text-gray-700 font-medium mb-2">
+                                الاسم الأول <span class="text-red-500">*</span>
+                            </label>
+                            <input type="text" id="firstName" required
+                                class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                placeholder="أحمد">
+                        </div>
+
+                        <!-- Last Name -->
+                        <div>
+                            <label class="block text-gray-700 font-medium mb-2">
+                                الاسم الأخير <span class="text-red-500">*</span>
+                            </label>
+                            <input type="text" id="lastName" required
+                                class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                placeholder="محمد">
+                        </div>
+
+                        <!-- Mobile -->
+                        <div>
+                            <label class="block text-gray-700 font-medium mb-2">
+                                رقم الموبايل <span class="text-red-500">*</span>
+                            </label>
+                            <input type="tel" id="mobile" required pattern="01[0-9]{9}"
+                                class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                placeholder="01xxxxxxxxx" maxlength="11">
+                            <p class="text-gray-500 text-sm mt-1">يجب أن يبدأ بـ 01 ويتكون من 11 رقم</p>
+                        </div>
+
+                        <!-- Email -->
+                        <div>
+                            <label class="block text-gray-700 font-medium mb-2">
+                                البريد الإلكتروني
+                            </label>
+                            <input type="email" id="email"
+                                class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                placeholder="example@email.com">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- National ID -->
+            <div class="bg-white rounded-2xl shadow-lg overflow-hidden mb-6">
+                <div class="px-6 py-4 bg-gradient-to-r from-green-50 to-emerald-50 border-b">
+                    <h2 class="text-lg font-bold text-gray-800">🪪 بطاقة الرقم القومي</h2>
+                </div>
+
+                <div class="p-6">
+                    <!-- National ID Number -->
+                    <div class="mb-6">
+                        <label class="block text-gray-700 font-medium mb-2">
+                            الرقم القومي <span class="text-red-500">*</span>
+                        </label>
+                        <input type="text" id="nationalId" required pattern="[0-9]{14}"
+                            class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-mono text-lg tracking-wider"
+                            placeholder="29901011234567" maxlength="14">
+                        <p class="text-gray-500 text-sm mt-1">يجب أن يتكون من 14 رقم</p>
+                    </div>
+
+                    <!-- ID Photos -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- Front -->
+                        <div>
+                            <label class="block text-gray-700 font-medium mb-2">صورة الوجه الأمامي</label>
+                            <div class="upload-zone rounded-xl p-6 text-center cursor-pointer" id="frontZone" 
+                                ondrop="handleDrop(event, 'front')" ondragover="handleDragOver(event, 'front')" ondragleave="handleDragLeave(event, 'front')">
+                                <input type="file" id="frontInput" accept="image/*" class="hidden" onchange="previewID(this, 'front')">
+                                <div id="frontPlaceholder" onclick="document.getElementById('frontInput').click()">
+                                    <svg class="w-12 h-12 text-gray-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                                    </svg>
+                                    <p class="text-gray-500">اسحب الصورة هنا أو انقر للرفع</p>
+                                </div>
+                                <div id="frontPreview" class="hidden">
+                                    <img src="" alt="Front ID" class="max-h-32 mx-auto rounded-lg">
+                                    <button type="button" onclick="removeID('front')" class="mt-2 text-red-500 text-sm hover:underline">إزالة</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Back -->
+                        <div>
+                            <label class="block text-gray-700 font-medium mb-2">صورة الوجه الخلفي</label>
+                            <div class="upload-zone rounded-xl p-6 text-center cursor-pointer" id="backZone"
+                                ondrop="handleDrop(event, 'back')" ondragover="handleDragOver(event, 'back')" ondragleave="handleDragLeave(event, 'back')">
+                                <input type="file" id="backInput" accept="image/*" class="hidden" onchange="previewID(this, 'back')">
+                                <div id="backPlaceholder" onclick="document.getElementById('backInput').click()">
+                                    <svg class="w-12 h-12 text-gray-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                                    </svg>
+                                    <p class="text-gray-500">اسحب الصورة هنا أو انقر للرفع</p>
+                                </div>
+                                <div id="backPreview" class="hidden">
+                                    <img src="" alt="Back ID" class="max-h-32 mx-auto rounded-lg">
+                                    <button type="button" onclick="removeID('back')" class="mt-2 text-red-500 text-sm hover:underline">إزالة</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Verification Status -->
+            <div class="bg-white rounded-2xl shadow-lg overflow-hidden mb-6">
+                <div class="px-6 py-4 bg-gradient-to-r from-purple-50 to-pink-50 border-b">
+                    <h2 class="text-lg font-bold text-gray-800">✅ حالة التحقق</h2>
+                </div>
+
+                <div class="p-6 space-y-4">
+                    <!-- Is Verified -->
+                    <div class="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center">
+                                <span class="text-xl">✓</span>
+                            </div>
+                            <div>
+                                <p class="font-medium text-gray-800">الحساب موثق</p>
+                                <p class="text-gray-500 text-sm">المستخدم موثق ويمكنه إجراء جميع العمليات</p>
+                            </div>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="isVerified">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+
+                    <!-- National ID Verified -->
+                    <div class="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
+                                <span class="text-xl">🪪</span>
+                            </div>
+                            <div>
+                                <p class="font-medium text-gray-800">الرقم القومي موثق</p>
+                                <p class="text-gray-500 text-sm">تم التحقق من صحة بيانات الرقم القومي</p>
+                            </div>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="isNationalIdVerified">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Initial Balance (Optional) -->
+            <div class="bg-white rounded-2xl shadow-lg overflow-hidden mb-6">
+                <div class="px-6 py-4 bg-gradient-to-r from-yellow-50 to-orange-50 border-b">
+                    <h2 class="text-lg font-bold text-gray-800">💰 رصيد ابتدائي (اختياري)</h2>
+                </div>
+
+                <div class="p-6">
+                    <div>
+                        <label class="block text-gray-700 font-medium mb-2">الرصيد الابتدائي</label>
+                        <div class="relative">
+                            <input type="number" id="initialBalance" min="0" step="0.01"
+                                class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent pl-16"
+                                placeholder="0.00" value="0">
+                            <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">ج.م</span>
+                        </div>
+                        <p class="text-gray-500 text-sm mt-1">اترك 0 إذا لم ترغب في إضافة رصيد ابتدائي</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex gap-4">
+                <button type="submit" id="submitBtn" 
+                    class="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+                    </svg>
+                    <span id="submitBtnText">إنشاء المستخدم</span>
+                </button>
+                <button type="button" onclick="resetForm()" class="px-6 bg-gray-200 hover:bg-gray-300 text-gray-700 py-4 rounded-xl font-bold transition-colors">
+                    إعادة تعيين
+                </button>
+            </div>
+        </form>
+    </main>
+</div>
+
+<script>
+// File storage
+let files = {
+    avatar: null,
+    front: null,
+    back: null
+};
+
+// Preview avatar
+function previewAvatar(input) {
+    if (input.files && input.files[0]) {
+        files.avatar = input.files[0];
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            document.getElementById('avatarPreview').innerHTML = 
+                `<img src="${e.target.result}" class="w-full h-full rounded-full object-cover">`;
+        };
+        reader.readAsDataURL(input.files[0]);
+    }
+}
+
+// Update avatar initial
+document.getElementById('firstName').addEventListener('input', function() {
+    if (!files.avatar) {
+        const initial = this.value.charAt(0) || '?';
+        document.getElementById('avatarPreview').textContent = initial;
+    }
+});
+
+// Preview ID photos
+function previewID(input, side) {
+    if (input.files && input.files[0]) {
+        files[side] = input.files[0];
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            document.getElementById(`${side}Placeholder`).classList.add('hidden');
+            document.getElementById(`${side}Preview`).classList.remove('hidden');
+            document.getElementById(`${side}Preview`).querySelector('img').src = e.target.result;
+            document.getElementById(`${side}Zone`).classList.add('has-file');
+        };
+        reader.readAsDataURL(input.files[0]);
+    }
+}
+
+function removeID(side) {
+    files[side] = null;
+    document.getElementById(`${side}Input`).value = '';
+    document.getElementById(`${side}Placeholder`).classList.remove('hidden');
+    document.getElementById(`${side}Preview`).classList.add('hidden');
+    document.getElementById(`${side}Zone`).classList.remove('has-file');
+}
+
+// Drag and drop
+function handleDragOver(e, side) {
+    e.preventDefault();
+    document.getElementById(`${side}Zone`).classList.add('dragover');
+}
+
+function handleDragLeave(e, side) {
+    e.preventDefault();
+    document.getElementById(`${side}Zone`).classList.remove('dragover');
+}
+
+function handleDrop(e, side) {
+    e.preventDefault();
+    document.getElementById(`${side}Zone`).classList.remove('dragover');
+    
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith('image/')) {
+        const input = document.getElementById(`${side}Input`);
+        const dt = new DataTransfer();
+        dt.items.add(file);
+        input.files = dt.files;
+        previewID(input, side);
+    }
+}
+
+// Validate National ID
+document.getElementById('nationalId').addEventListener('input', function() {
+    this.value = this.value.replace(/\D/g, '').slice(0, 14);
+});
+
+// Validate Mobile
+document.getElementById('mobile').addEventListener('input', function() {
+    this.value = this.value.replace(/\D/g, '').slice(0, 11);
+});
+
+// Create user
+async function createUser(event) {
+    event.preventDefault();
+    
+    const btn = document.getElementById('submitBtn');
+    const btnText = document.getElementById('submitBtnText');
+    btn.disabled = true;
+    btnText.innerHTML = '<span class="spinner"></span> جاري الإنشاء...';
+    
+    try {
+        const userData = {
+            firstName: document.getElementById('firstName').value,
+            lastName: document.getElementById('lastName').value,
+            mobile: document.getElementById('mobile').value,
+            email: document.getElementById('email').value,
+            nationalId: document.getElementById('nationalId').value,
+            isVerified: document.getElementById('isVerified').checked,
+            isNationalIdVerified: document.getElementById('isNationalIdVerified').checked,
+            initialBalance: parseFloat(document.getElementById('initialBalance').value) || 0
+        };
+        
+        // Validate
+        if (!userData.mobile.match(/^01[0-9]{9}$/)) {
+            throw new Error('رقم الموبايل غير صحيح');
+        }
+        
+        if (!userData.nationalId.match(/^[0-9]{14}$/)) {
+            throw new Error('الرقم القومي غير صحيح');
+        }
+        
+        // In production, send to API with files
+        // const formData = new FormData();
+        // formData.append('userData', JSON.stringify(userData));
+        // if (files.avatar) formData.append('avatar', files.avatar);
+        // if (files.front) formData.append('idFront', files.front);
+        // if (files.back) formData.append('idBack', files.back);
+        // 
+        // const response = await fetch('/api/admin/users', {
+        //     method: 'POST',
+        //     headers: { 'Authorization': `Bearer ${token}` },
+        //     body: formData
+        // });
+        
+        // Simulate API call
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        
+        showSuccess(`تم إنشاء حساب ${userData.firstName} ${userData.lastName} بنجاح`);
+        
+        // Reset form after success
+        setTimeout(() => {
+            resetForm();
+        }, 2000);
+        
+    } catch (error) {
+        showError(error.message || 'حدث خطأ أثناء إنشاء المستخدم');
+    }
+    
+    btn.disabled = false;
+    btnText.innerHTML = '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg> إنشاء المستخدم';
+    
+    return false;
+}
+
+// Reset form
+function resetForm() {
+    document.getElementById('createUserForm').reset();
+    document.getElementById('avatarPreview').textContent = '?';
+    files = { avatar: null, front: null, back: null };
+    removeID('front');
+    removeID('back');
+}
+
+// Alert functions
+function showSuccess(message) {
+    document.getElementById('successMessage').textContent = message;
+    document.getElementById('successAlert').classList.remove('hidden');
+    document.getElementById('errorAlert').classList.add('hidden');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setTimeout(() => document.getElementById('successAlert').classList.add('hidden'), 5000);
+}
+
+function showError(message) {
+    document.getElementById('errorMessage').textContent = message;
+    document.getElementById('errorAlert').classList.remove('hidden');
+    document.getElementById('successAlert').classList.add('hidden');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setTimeout(() => document.getElementById('errorAlert').classList.add('hidden'), 5000);
+}
+</script>
+
+</body>
+</html>

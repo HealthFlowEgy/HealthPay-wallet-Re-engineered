@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>طلبات السحب - لوحة التحكم</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+        .spinner { border: 3px solid #f3f3f3; border-top: 3px solid #6366f1; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; display: inline-block; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        .tab-btn { transition: all 0.2s; }
+        .tab-btn.active { background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); color: white; }
+        
+        .request-row { transition: all 0.2s; }
+        .request-row:hover { background-color: #f9fafb; }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+
+<!-- Loading -->
+<div id="loading" class="fixed inset-0 bg-gray-100 flex items-center justify-center z-50">
+    <div class="text-center">
+        <div class="spinner mx-auto"></div>
+        <p class="mt-4 text-gray-600">جاري التحميل...</p>
+    </div>
+</div>
+
+<!-- Main Content -->
+<div id="main" class="hidden">
+    <!-- Header -->
+    <header class="bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg">
+        <div class="max-w-7xl mx-auto px-4 py-6">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-4">
+                    <a href="/admin/dashboard.html" class="text-white hover:text-indigo-200 transition-colors">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                        </svg>
+                    </a>
+                    <div>
+                        <h1 class="text-2xl font-bold">💸 طلبات السحب</h1>
+                        <p class="text-indigo-200 text-sm">إدارة طلبات سحب أرباح التجار</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-4">
+                    <div class="text-left">
+                        <p class="text-indigo-200 text-xs">إجمالي قيد الانتظار</p>
+                        <p class="text-2xl font-bold" id="totalPendingAmount">0 ج.م</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 py-6">
+        <!-- Summary Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <div class="bg-white rounded-xl shadow-sm p-5">
+                <div class="flex items-center gap-3">
+                    <div class="w-12 h-12 bg-yellow-100 rounded-xl flex items-center justify-center">
+                        <span class="text-2xl">⏳</span>
+                    </div>
+                    <div>
+                        <p class="text-gray-500 text-sm">قيد الانتظار</p>
+                        <p class="text-2xl font-bold text-yellow-600" id="pendingCount">0</p>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-white rounded-xl shadow-sm p-5">
+                <div class="flex items-center gap-3">
+                    <div class="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
+                        <span class="text-2xl">✅</span>
+                    </div>
+                    <div>
+                        <p class="text-gray-500 text-sm">مكتمل</p>
+                        <p class="text-2xl font-bold text-green-600" id="completedCount">0</p>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-white rounded-xl shadow-sm p-5">
+                <div class="flex items-center gap-3">
+                    <div class="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center">
+                        <span class="text-2xl">↩️</span>
+                    </div>
+                    <div>
+                        <p class="text-gray-500 text-sm">مسترجع</p>
+                        <p class="text-2xl font-bold text-red-600" id="revertedCount">0</p>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-white rounded-xl shadow-sm p-5">
+                <div class="flex items-center gap-3">
+                    <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
+                        <span class="text-2xl">💰</span>
+                    </div>
+                    <div>
+                        <p class="text-gray-500 text-sm">إجمالي المسحوب</p>
+                        <p class="text-2xl font-bold text-blue-600" id="totalWithdrawn">0</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="bg-white rounded-xl shadow-sm p-2 mb-6 inline-flex">
+            <button class="tab-btn px-6 py-3 rounded-lg font-medium active" data-tab="pending">
+                قيد الانتظار
+            </button>
+            <button class="tab-btn px-6 py-3 rounded-lg font-medium text-gray-600" data-tab="history">
+                السجل
+            </button>
+        </div>
+
+        <!-- Filters -->
+        <div class="bg-white rounded-xl shadow-sm p-4 mb-6">
+            <div class="flex flex-wrap gap-4 items-center">
+                <div class="flex-1 min-w-[200px]">
+                    <input type="text" id="searchInput" placeholder="بحث بالاسم أو رقم التاجر..."
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <div class="flex gap-2">
+                    <input type="number" id="amountMin" placeholder="الحد الأدنى" 
+                        class="w-32 px-4 py-2 border border-gray-300 rounded-lg">
+                    <input type="number" id="amountMax" placeholder="الحد الأقصى" 
+                        class="w-32 px-4 py-2 border border-gray-300 rounded-lg">
+                </div>
+                <div class="flex gap-2" id="historyFilters" style="display: none;">
+                    <select id="statusFilter" class="px-4 py-2 border border-gray-300 rounded-lg">
+                        <option value="">كل الحالات</option>
+                        <option value="completed">مكتمل</option>
+                        <option value="reverted">مسترجع</option>
+                    </select>
+                    <input type="date" id="dateFrom" class="px-4 py-2 border border-gray-300 rounded-lg">
+                    <input type="date" id="dateTo" class="px-4 py-2 border border-gray-300 rounded-lg">
+                </div>
+                <button onclick="applyFilters()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg">
+                    تطبيق
+                </button>
+            </div>
+        </div>
+
+        <!-- Bulk Actions (Pending Tab) -->
+        <div id="bulkActions" class="bg-indigo-50 border border-indigo-200 rounded-xl p-4 mb-6 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <input type="checkbox" id="selectAll" class="w-5 h-5 rounded" onchange="toggleSelectAll()">
+                <span class="text-indigo-700 font-medium">تحديد الكل</span>
+                <span class="text-indigo-600 text-sm">(<span id="selectedCount">0</span> محدد - <span id="selectedAmount">0</span> ج.م)</span>
+            </div>
+            <div class="flex gap-2">
+                <button onclick="markAllAsDoneAndExport()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    تنفيذ وتصدير ACH
+                </button>
+                <button onclick="exportCSV()" class="bg-gray-100 hover:bg-gray-200 px-4 py-2 rounded-lg flex items-center gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                    </svg>
+                    تصدير CSV
+                </button>
+            </div>
+        </div>
+
+        <!-- Table -->
+        <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="w-full">
+                    <thead class="bg-gray-50 border-b">
+                        <tr>
+                            <th class="px-4 py-3 text-right text-sm font-semibold text-gray-600 w-10">
+                                <input type="checkbox" class="w-4 h-4 rounded" id="headerCheckbox">
+                            </th>
+                            <th class="px-4 py-3 text-right text-sm font-semibold text-gray-600">ID</th>
+                            <th class="px-4 py-3 text-right text-sm font-semibold text-gray-600">المبلغ</th>
+                            <th class="px-4 py-3 text-right text-sm font-semibold text-gray-600">الحالة</th>
+                            <th class="px-4 py-3 text-right text-sm font-semibold text-gray-600">المستخدم</th>
+                            <th class="px-4 py-3 text-right text-sm font-semibold text-gray-600">التاجر</th>
+                            <th class="px-4 py-3 text-right text-sm font-semibold text-gray-600">طريقة السحب</th>
+                            <th class="px-4 py-3 text-right text-sm font-semibold text-gray-600">رقم الحساب</th>
+                            <th class="px-4 py-3 text-right text-sm font-semibold text-gray-600">ملاحظات</th>
+                            <th class="px-4 py-3 text-right text-sm font-semibold text-gray-600">التاريخ</th>
+                            <th class="px-4 py-3 text-right text-sm font-semibold text-gray-600">الإجراءات</th>
+                        </tr>
+                    </thead>
+                    <tbody id="requestsTable">
+                        <!-- Rows will be inserted here -->
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Empty State -->
+            <div id="emptyState" class="hidden text-center py-12">
+                <span class="text-6xl">📭</span>
+                <h3 class="text-lg font-bold text-gray-800 mt-4">لا توجد طلبات</h3>
+                <p class="text-gray-500 mt-2" id="emptyMessage">لا توجد طلبات سحب قيد الانتظار</p>
+            </div>
+        </div>
+
+        <!-- Pagination -->
+        <div class="flex items-center justify-between mt-6">
+            <p class="text-gray-600 text-sm">عرض <span id="showingFrom">0</span> - <span id="showingTo">0</span> من <span id="totalRecords">0</span></p>
+            <div class="flex gap-2">
+                <button onclick="prevPage()" id="prevBtn" class="px-4 py-2 bg-white border rounded-lg hover:bg-gray-50 disabled:opacity-50" disabled>السابق</button>
+                <button onclick="nextPage()" id="nextBtn" class="px-4 py-2 bg-white border rounded-lg hover:bg-gray-50 disabled:opacity-50" disabled>التالي</button>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- Revert Confirmation Modal -->
+<div id="revertModal" class="hidden fixed inset-0 z-50">
+    <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" onclick="closeRevertModal()"></div>
+    <div class="absolute inset-0 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+            <div class="text-center mb-6">
+                <div class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <span class="text-3xl">↩️</span>
+                </div>
+                <h3 class="text-lg font-bold text-gray-800">استرجاع الطلب</h3>
+                <p class="text-gray-600 text-sm mt-1">سيتم إرجاع المبلغ إلى محفظة التاجر</p>
+            </div>
+            
+            <div class="bg-gray-50 rounded-xl p-4 mb-6">
+                <div class="flex justify-between mb-2">
+                    <span class="text-gray-500">المبلغ</span>
+                    <span class="font-bold text-gray-800" id="revertAmount">0 ج.م</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-gray-500">التاجر</span>
+                    <span class="font-medium text-gray-800" id="revertMerchant">-</span>
+                </div>
+            </div>
+            
+            <div class="mb-6">
+                <label class="block text-gray-700 font-medium mb-2">سبب الاسترجاع</label>
+                <textarea id="revertReason" rows="2" 
+                    class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500"
+                    placeholder="اختياري: سبب استرجاع الطلب..."></textarea>
+            </div>
+            
+            <div class="flex gap-3">
+                <button onclick="closeRevertModal()" class="flex-1 py-3 bg-gray-100 rounded-xl font-medium text-gray-600">إلغاء</button>
+                <button onclick="confirmRevert()" class="flex-1 py-3 bg-red-600 text-white rounded-xl font-medium">تأكيد الاسترجاع</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// State
+let currentTab = 'pending';
+let requests = [];
+let selectedIds = new Set();
+let currentPage = 1;
+let pageSize = 10;
+let revertingId = null;
+
+// Sample data
+const sampleRequests = [
+    { id: 'CR-001', amount: 5000, status: 'pending', userId: 'U-101', userName: 'صيدلية الشفاء', merchantId: 'M-001', merchantName: 'الشفاء للأدوية', method: 'bank_transfer', accountNumber: '1234567890123', comment: 'سحب شهري', createdAt: '2025-12-26T10:30:00' },
+    { id: 'CR-002', amount: 12500, status: 'pending', userId: 'U-102', userName: 'عيادة النور', merchantId: 'M-002', merchantName: 'النور الطبية', method: 'instapay', accountNumber: '01012345678', comment: '', createdAt: '2025-12-26T09:15:00' },
+    { id: 'CR-003', amount: 3200, status: 'pending', userId: 'U-103', userName: 'مستشفى السلام', merchantId: 'M-003', merchantName: 'السلام للرعاية', method: 'bank_transfer', accountNumber: '9876543210987', comment: 'عاجل', createdAt: '2025-12-25T16:45:00' },
+    { id: 'CR-004', amount: 8000, status: 'completed', userId: 'U-104', userName: 'صيدلية الأمل', merchantId: 'M-004', merchantName: 'الأمل فارما', method: 'bank_transfer', accountNumber: '5555666677778', comment: '', createdAt: '2025-12-24T14:00:00', processedAt: '2025-12-24T16:00:00' },
+    { id: 'CR-005', amount: 2000, status: 'reverted', userId: 'U-105', userName: 'مختبر الحياة', merchantId: 'M-005', merchantName: 'الحياة للتحاليل', method: 'instapay', accountNumber: '01098765432', comment: 'طلب إلغاء', createdAt: '2025-12-23T11:20:00', processedAt: '2025-12-23T12:00:00', revertReason: 'طلب العميل' },
+];
+
+// Initialize
+function init() {
+    requests = [...sampleRequests];
+    updateSummary();
+    renderTable();
+    
+    document.getElementById('loading').classList.add('hidden');
+    document.getElementById('main').classList.remove('hidden');
+}
+
+// Tab switching
+document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        this.classList.add('active');
+        currentTab = this.dataset.tab;
+        currentPage = 1;
+        selectedIds.clear();
+        
+        document.getElementById('bulkActions').style.display = currentTab === 'pending' ? 'flex' : 'none';
+        document.getElementById('historyFilters').style.display = currentTab === 'history' ? 'flex' : 'none';
+        document.getElementById('headerCheckbox').style.display = currentTab === 'pending' ? 'block' : 'none';
+        
+        renderTable();
+    });
+});
+
+// Update summary
+function updateSummary() {
+    const pending = requests.filter(r => r.status === 'pending');
+    const completed = requests.filter(r => r.status === 'completed');
+    const reverted = requests.filter(r => r.status === 'reverted');
+    
+    document.getElementById('pendingCount').textContent = pending.length;
+    document.getElementById('completedCount').textContent = completed.length;
+    document.getElementById('revertedCount').textContent = reverted.length;
+    
+    const totalPending = pending.reduce((sum, r) => sum + r.amount, 0);
+    const totalWithdrawn = completed.reduce((sum, r) => sum + r.amount, 0);
+    
+    document.getElementById('totalPendingAmount').textContent = `${totalPending.toLocaleString()} ج.م`;
+    document.getElementById('totalWithdrawn').textContent = totalWithdrawn.toLocaleString();
+}
+
+// Render table
+function renderTable() {
+    const tbody = document.getElementById('requestsTable');
+    let filtered = requests.filter(r => {
+        if (currentTab === 'pending') return r.status === 'pending';
+        return r.status !== 'pending';
+    });
+    
+    // Apply filters
+    const search = document.getElementById('searchInput').value.toLowerCase();
+    if (search) {
+        filtered = filtered.filter(r => 
+            r.userName.toLowerCase().includes(search) || 
+            r.merchantName.toLowerCase().includes(search) ||
+            r.merchantId.toLowerCase().includes(search)
+        );
+    }
+    
+    const amountMin = parseFloat(document.getElementById('amountMin').value) || 0;
+    const amountMax = parseFloat(document.getElementById('amountMax').value) || Infinity;
+    filtered = filtered.filter(r => r.amount >= amountMin && r.amount <= amountMax);
+    
+    if (currentTab === 'history') {
+        const status = document.getElementById('statusFilter').value;
+        if (status) filtered = filtered.filter(r => r.status === status);
+        
+        const dateFrom = document.getElementById('dateFrom').value;
+        const dateTo = document.getElementById('dateTo').value;
+        if (dateFrom) filtered = filtered.filter(r => new Date(r.createdAt) >= new Date(dateFrom));
+        if (dateTo) filtered = filtered.filter(r => new Date(r.createdAt) <= new Date(dateTo + 'T23:59:59'));
+    }
+    
+    // Pagination
+    const total = filtered.length;
+    const totalPages = Math.ceil(total / pageSize);
+    const start = (currentPage - 1) * pageSize;
+    const end = Math.min(start + pageSize, total);
+    const paged = filtered.slice(start, end);
+    
+    document.getElementById('showingFrom').textContent = total > 0 ? start + 1 : 0;
+    document.getElementById('showingTo').textContent = end;
+    document.getElementById('totalRecords').textContent = total;
+    document.getElementById('prevBtn').disabled = currentPage === 1;
+    document.getElementById('nextBtn').disabled = currentPage >= totalPages;
+    
+    if (paged.length === 0) {
+        tbody.innerHTML = '';
+        document.getElementById('emptyState').classList.remove('hidden');
+        return;
+    }
+    
+    document.getElementById('emptyState').classList.add('hidden');
+    
+    tbody.innerHTML = paged.map(r => `
+        <tr class="request-row border-b">
+            <td class="px-4 py-3">
+                ${currentTab === 'pending' ? `<input type="checkbox" class="w-4 h-4 rounded row-checkbox" data-id="${r.id}" data-amount="${r.amount}" ${selectedIds.has(r.id) ? 'checked' : ''} onchange="toggleSelect('${r.id}', ${r.amount})">` : ''}
+            </td>
+            <td class="px-4 py-3 font-mono text-sm text-gray-600">${r.id}</td>
+            <td class="px-4 py-3">
+                <span class="font-bold text-gray-800">${r.amount.toLocaleString()}</span>
+                <span class="text-gray-500 text-sm">ج.م</span>
+            </td>
+            <td class="px-4 py-3">${getStatusBadge(r.status)}</td>
+            <td class="px-4 py-3">
+                <p class="font-medium text-gray-800">${r.userName}</p>
+                <p class="text-gray-500 text-sm">${r.userId}</p>
+            </td>
+            <td class="px-4 py-3">
+                <p class="font-medium text-gray-800">${r.merchantName}</p>
+                <p class="text-gray-500 text-sm">${r.merchantId}</p>
+            </td>
+            <td class="px-4 py-3">
+                ${getMethodBadge(r.method)}
+            </td>
+            <td class="px-4 py-3 font-mono text-sm">${r.accountNumber}</td>
+            <td class="px-4 py-3 text-gray-500 text-sm max-w-[150px] truncate" title="${r.comment || r.revertReason || '-'}">${r.comment || r.revertReason || '-'}</td>
+            <td class="px-4 py-3 text-gray-500 text-sm">${formatDate(r.createdAt)}</td>
+            <td class="px-4 py-3">
+                ${currentTab === 'pending' ? `
+                    <button onclick="openRevertModal('${r.id}')" class="bg-red-100 hover:bg-red-200 text-red-700 px-3 py-1 rounded-lg text-sm font-medium">
+                        استرجاع
+                    </button>
+                ` : '-'}
+            </td>
+        </tr>
+    `).join('');
+    
+    updateSelectedCount();
+}
+
+function getStatusBadge(status) {
+    const badges = {
+        'pending': '<span class="bg-yellow-100 text-yellow-700 px-2 py-1 rounded-full text-xs font-medium">قيد الانتظار</span>',
+        'completed': '<span class="bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs font-medium">مكتمل</span>',
+        'reverted': '<span class="bg-red-100 text-red-700 px-2 py-1 rounded-full text-xs font-medium">مسترجع</span>'
+    };
+    return badges[status] || status;
+}
+
+function getMethodBadge(method) {
+    const badges = {
+        'bank_transfer': '<span class="bg-blue-100 text-blue-700 px-2 py-1 rounded-full text-xs">تحويل بنكي</span>',
+        'instapay': '<span class="bg-purple-100 text-purple-700 px-2 py-1 rounded-full text-xs">InstaPay</span>'
+    };
+    return badges[method] || method;
+}
+
+function formatDate(dateStr) {
+    return new Date(dateStr).toLocaleDateString('ar-EG', { 
+        month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' 
+    });
+}
+
+// Selection
+function toggleSelect(id, amount) {
+    if (selectedIds.has(id)) {
+        selectedIds.delete(id);
+    } else {
+        selectedIds.add(id);
+    }
+    updateSelectedCount();
+}
+
+function toggleSelectAll() {
+    const pending = requests.filter(r => r.status === 'pending');
+    if (selectedIds.size === pending.length) {
+        selectedIds.clear();
+    } else {
+        pending.forEach(r => selectedIds.add(r.id));
+    }
+    renderTable();
+}
+
+function updateSelectedCount() {
+    const selectedRequests = requests.filter(r => selectedIds.has(r.id));
+    const totalAmount = selectedRequests.reduce((sum, r) => sum + r.amount, 0);
+    
+    document.getElementById('selectedCount').textContent = selectedIds.size;
+    document.getElementById('selectedAmount').textContent = totalAmount.toLocaleString();
+    document.getElementById('selectAll').checked = selectedIds.size === requests.filter(r => r.status === 'pending').length && selectedIds.size > 0;
+}
+
+// Revert
+function openRevertModal(id) {
+    revertingId = id;
+    const request = requests.find(r => r.id === id);
+    if (request) {
+        document.getElementById('revertAmount').textContent = `${request.amount.toLocaleString()} ج.م`;
+        document.getElementById('revertMerchant').textContent = request.merchantName;
+    }
+    document.getElementById('revertReason').value = '';
+    document.getElementById('revertModal').classList.remove('hidden');
+}
+
+function closeRevertModal() {
+    document.getElementById('revertModal').classList.add('hidden');
+    revertingId = null;
+}
+
+function confirmRevert() {
+    const reason = document.getElementById('revertReason').value.trim();
+    const request = requests.find(r => r.id === revertingId);
+    
+    if (request) {
+        request.status = 'reverted';
+        request.processedAt = new Date().toISOString();
+        request.revertReason = reason || 'تم الاسترجاع بواسطة المسؤول';
+        selectedIds.delete(revertingId);
+    }
+    
+    closeRevertModal();
+    updateSummary();
+    renderTable();
+    showToast('↩️ تم استرجاع الطلب وإعادة المبلغ للمحفظة');
+}
+
+// Mark all as done and export ACH
+function markAllAsDoneAndExport() {
+    if (selectedIds.size === 0) {
+        alert('يرجى تحديد طلبات أولاً');
+        return;
+    }
+    
+    const selectedRequests = requests.filter(r => selectedIds.has(r.id));
+    const totalAmount = selectedRequests.reduce((sum, r) => sum + r.amount, 0);
+    
+    if (!confirm(`هل تريد تنفيذ ${selectedIds.size} طلب بإجمالي ${totalAmount.toLocaleString()} ج.م وتصدير ملف ACH؟`)) return;
+    
+    // Generate ACH file
+    const achData = selectedRequests.map(r => ({
+        id: r.id,
+        amount: r.amount,
+        accountNumber: r.accountNumber,
+        merchantName: r.merchantName,
+        method: r.method
+    }));
+    
+    // Export ACH CSV
+    const headers = ['Transaction ID', 'Amount', 'Account Number', 'Beneficiary Name', 'Method'];
+    const rows = achData.map(r => [r.id, r.amount, r.accountNumber, r.merchantName, r.method]);
+    const csv = [headers, ...rows].map(r => r.join(',')).join('\n');
+    
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `ACH-batch-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    
+    // Mark as completed
+    selectedIds.forEach(id => {
+        const request = requests.find(r => r.id === id);
+        if (request) {
+            request.status = 'completed';
+            request.processedAt = new Date().toISOString();
+        }
+    });
+    
+    selectedIds.clear();
+    updateSummary();
+    renderTable();
+    showToast(`✅ تم تنفيذ ${achData.length} طلب وتصدير ملف ACH`);
+}
+
+// Export CSV
+function exportCSV() {
+    const data = requests.filter(r => currentTab === 'pending' ? r.status === 'pending' : r.status !== 'pending');
+    const headers = ['ID', 'Amount', 'Status', 'User', 'Merchant', 'Method', 'Account', 'Date'];
+    const rows = data.map(r => [r.id, r.amount, r.status, r.userName, r.merchantName, r.method, r.accountNumber, r.createdAt]);
+    
+    const csv = [headers, ...rows].map(r => r.join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `cashout-requests-${currentTab}-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+}
+
+// Filters
+function applyFilters() {
+    currentPage = 1;
+    renderTable();
+}
+
+// Pagination
+function prevPage() { if (currentPage > 1) { currentPage--; renderTable(); } }
+function nextPage() { currentPage++; renderTable(); }
+
+// Toast
+function showToast(message) {
+    const toast = document.createElement('div');
+    toast.className = 'fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-800 text-white px-6 py-3 rounded-full shadow-lg z-50';
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
+}
+
+init();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,516 @@
+# ============================================
+# HealthPay GraphQL Schema
+# Sprint 5-7: Complete API Definition
+# ============================================
+
+scalar DateTime
+scalar JSON
+scalar Decimal
+
+# ============================================
+# Core Types
+# ============================================
+
+type User {
+  id: ID!
+  phoneNumber: String!
+  name: String
+  email: String
+  role: UserRole!
+  wallet: Wallet
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+enum UserRole {
+  USER
+  MERCHANT
+  ADMIN
+}
+
+type Wallet {
+  id: ID!
+  balance: Float!
+  pendingBalance: Float!
+  currency: String!
+  userId: ID!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+type Merchant {
+  id: ID!
+  name: String!
+  phone: String!
+  email: String
+  businessName: String!
+  businessType: String
+  status: MerchantStatus!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+enum MerchantStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+}
+
+# ============================================
+# Transaction Types
+# ============================================
+
+type Transaction {
+  id: ID!
+  type: TransactionType!
+  amount: Float!
+  fee: Float!
+  net: Float!
+  currency: String!
+  status: TransactionStatus!
+  description: String
+  reference: String!
+  fromWalletId: ID
+  toWalletId: ID
+  merchantId: ID
+  customer: Customer
+  metadata: JSON
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+enum TransactionType {
+  PAYMENT_REQUEST
+  QR
+  API
+  TRANSFER
+  BILL_PAYMENT
+  TOPUP
+  WITHDRAWAL
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+  CANCELLED
+}
+
+type TransactionResult {
+  transactions: [Transaction!]!
+  totalCount: Int!
+  analytics: TransactionAnalytics
+}
+
+type TransactionAnalytics {
+  totalRevenue: Float!
+  totalRefunded: Float!
+  avgTransaction: Float!
+  periodRevenue: Float!
+  periodGrowth: Float!
+}
+
+# ============================================
+# Payment Request Types (Sprint 5)
+# ============================================
+
+type PaymentRequest {
+  id: ID!
+  merchantId: ID!
+  amount: Float!
+  description: String!
+  status: PaymentRequestStatus!
+  customerPhone: String
+  customerName: String
+  reference: String
+  paymentLink: String!
+  expiresAt: DateTime
+  paidAt: DateTime
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+enum PaymentRequestStatus {
+  PENDING
+  PAID
+  EXPIRED
+  CANCELLED
+}
+
+type PaymentRequestResult {
+  requests: [PaymentRequest!]!
+  totalCount: Int!
+  stats: PaymentRequestStats!
+}
+
+type PaymentRequestStats {
+  totalCollected: Float!
+  pendingAmount: Float!
+  pendingCount: Int!
+  paidCount: Int!
+  expiredCount: Int!
+  conversionRate: Float!
+}
+
+input PaymentRequestInput {
+  merchantId: ID!
+  amount: Float!
+  description: String!
+  customerPhone: String
+  customerName: String
+  expiryHours: Int
+  reference: String
+}
+
+# ============================================
+# Customer Types (Sprint 6)
+# ============================================
+
+type Customer {
+  id: ID!
+  merchantId: ID!
+  name: String!
+  phone: String!
+  email: String
+  totalSpent: Float!
+  transactionCount: Int!
+  avgTransaction: Float!
+  firstTransaction: DateTime
+  lastTransaction: DateTime
+  tags: [String!]!
+  recentTransactions: [Transaction!]
+  createdAt: DateTime!
+}
+
+type CustomerResult {
+  customers: [Customer!]!
+  totalCount: Int!
+  stats: CustomerStats!
+}
+
+type CustomerStats {
+  total: Int!
+  newThisMonth: Int!
+  avgValue: Float!
+  repeatRate: Float!
+  activeCount: Int!
+  inactiveCount: Int!
+}
+
+type CustomerDetails {
+  customer: Customer!
+  transactions: [Transaction!]!
+  monthlySpending: [MonthlySpending!]!
+}
+
+type MonthlySpending {
+  month: String!
+  amount: Float!
+  count: Int!
+}
+
+# ============================================
+# Dashboard Types (Sprint 6)
+# ============================================
+
+type MerchantDashboard {
+  balance: BalanceInfo!
+  todayStats: TodayStats!
+  weekStats: WeekStats!
+  revenueChart: ChartData!
+  transactionTypes: [TransactionTypeBreakdown!]!
+  recentTransactions: [Transaction!]!
+  topCustomers: [Customer!]!
+  pendingRequests: [PaymentRequest!]!
+}
+
+type BalanceInfo {
+  available: Float!
+  pending: Float!
+  total: Float!
+  currency: String!
+}
+
+type TodayStats {
+  revenue: Float!
+  revenueChange: Float!
+  transactions: Int!
+  transactionsChange: Float!
+  newCustomers: Int!
+  pendingRequests: Int!
+  avgTransaction: Float!
+}
+
+type WeekStats {
+  revenue: Float!
+  transactions: Int!
+  newCustomers: Int!
+}
+
+type ChartData {
+  labels: [String!]!
+  data: [Float!]!
+  previousData: [Float!]
+}
+
+type TransactionTypeBreakdown {
+  type: String!
+  label: String!
+  count: Int!
+  amount: Float!
+  percentage: Float!
+}
+
+# ============================================
+# Bill Payment Types (Sprint 7)
+# ============================================
+
+type BillCategory {
+  id: ID!
+  name: String!
+  nameAr: String!
+  icon: String!
+  order: Int!
+  billers: [Biller!]!
+}
+
+type Biller {
+  id: ID!
+  name: String!
+  nameAr: String!
+  code: String!
+  categoryId: ID!
+  accountFormat: String!
+  accountHint: String!
+}
+
+type BillInquiry {
+  success: Boolean!
+  subscriberName: String
+  amount: Float
+  dueDate: DateTime
+  period: String
+  billNumber: String
+  errorMessage: String
+}
+
+type SavedBiller {
+  id: ID!
+  userId: ID!
+  billerId: ID!
+  biller: Biller!
+  billerName: String!
+  billerIcon: String!
+  categoryName: String!
+  accountNumber: String!
+  nickname: String
+  createdAt: DateTime!
+}
+
+type BillPayment {
+  id: ID!
+  userId: ID!
+  billerId: ID!
+  biller: Biller!
+  billerName: String!
+  billerIcon: String!
+  categoryId: ID!
+  categoryName: String!
+  accountNumber: String!
+  amount: Float!
+  reference: String!
+  status: String!
+  subscriberName: String
+  paidAt: DateTime!
+}
+
+input PayBillInput {
+  walletId: ID!
+  billerId: ID!
+  accountNumber: String!
+  amount: Float!
+  pin: String!
+  billNumber: String
+  subscriberName: String
+}
+
+type PayBillResult {
+  success: Boolean!
+  reference: String
+  message: String
+  newBalance: Float
+}
+
+input SaveBillerInput {
+  userId: ID!
+  billerId: ID!
+  accountNumber: String!
+  nickname: String
+}
+
+type SaveBillerResult {
+  success: Boolean!
+  id: ID
+  message: String
+}
+
+# ============================================
+# Common Types
+# ============================================
+
+type OperationResult {
+  success: Boolean!
+  message: String
+}
+
+type RefundResult {
+  success: Boolean!
+  message: String
+  transaction: Transaction
+}
+
+type AuthPayload {
+  success: Boolean!
+  token: String
+  user: User
+  merchant: Merchant
+  message: String
+}
+
+# ============================================
+# Queries
+# ============================================
+
+type Query {
+  # Auth
+  me: User
+  hasPinSet(phoneNumber: String!): Boolean!
+  
+  # Wallets
+  wallet(id: ID!): Wallet
+  walletsByUser(userId: ID!): [Wallet!]!
+  walletAnalytics(walletId: ID!, days: Int): JSON
+  
+  # Transactions
+  transaction(id: ID!): Transaction
+  transactionsByWallet(walletId: ID!, limit: Int, offset: Int): [Transaction!]!
+  
+  # Merchant Dashboard (Sprint 6)
+  merchantDashboard(merchantId: ID!, period: Int): MerchantDashboard!
+  
+  # Merchant Transactions (Sprint 5)
+  merchantTransactions(
+    merchantId: ID!
+    status: String
+    type: String
+    search: String
+    limit: Int
+    offset: Int
+    startDate: DateTime
+    endDate: DateTime
+  ): TransactionResult!
+  
+  # Payment Requests (Sprint 5)
+  paymentRequests(
+    merchantId: ID!
+    status: String
+    limit: Int
+    offset: Int
+  ): PaymentRequestResult!
+  
+  paymentRequest(id: ID!): PaymentRequest
+  
+  # Customers (Sprint 6)
+  merchantCustomers(
+    merchantId: ID!
+    filter: String
+    sort: String
+    search: String
+    limit: Int
+    offset: Int
+  ): CustomerResult!
+  
+  customer(id: ID!): Customer
+  customerDetails(id: ID!): CustomerDetails
+  
+  # Bills (Sprint 7)
+  billCategories: [BillCategory!]!
+  billers(categoryId: ID!): [Biller!]!
+  biller(id: ID!): Biller
+  
+  inquireBill(billerId: ID!, accountNumber: String!): BillInquiry!
+  
+  savedBillers(userId: ID!): [SavedBiller!]!
+  
+  billPaymentHistory(
+    userId: ID!
+    categoryId: String
+    limit: Int
+    offset: Int
+  ): [BillPayment!]!
+}
+
+# ============================================
+# Mutations
+# ============================================
+
+type Mutation {
+  # Auth
+  login(phoneNumber: String!, pin: String!): AuthPayload!
+  merchantLogin(email: String!, password: String!): AuthPayload!
+  adminLogin(email: String!, password: String!): AuthPayload!
+  setPin(phoneNumber: String!, pin: String!): OperationResult!
+  
+  # Payment Requests (Sprint 5)
+  createPaymentRequest(input: PaymentRequestInput!): PaymentRequest!
+  cancelPaymentRequest(id: ID!): OperationResult!
+  markPaymentRequestPaid(id: ID!, payerInfo: JSON): OperationResult!
+  
+  # Transactions
+  refundTransaction(id: ID!, reason: String): RefundResult!
+  
+  # Bills (Sprint 7)
+  payBill(input: PayBillInput!): PayBillResult!
+  saveBiller(input: SaveBillerInput!): SaveBillerResult!
+  deleteSavedBiller(id: ID!): OperationResult!
+  
+  # Wallet
+  topUpWallet(walletId: ID!, amount: Float!, method: String!): OperationResult!
+}
+
+# Admin Mutations Input Types
+input AdminCreateUserInput {
+  fullName: String!
+  phone: String!
+  email: String
+  initialBalance: Float
+}
+
+input AdminUpdateUserInput {
+  id: String!
+  fullName: String
+  email: String
+  status: String
+}
+
+input AdminCreateMerchantInput {
+  businessName: String!
+  phone: String!
+  email: String
+  address: String
+}
+
+input AdminUpdateMerchantInput {
+  id: String!
+  businessName: String
+  email: String
+  status: String
+}
+
+extend type Mutation {
+  adminCreateUser(input: AdminCreateUserInput!): User
+  adminUpdateUser(input: AdminUpdateUserInput!): User
+  adminCreateMerchant(input: AdminCreateMerchantInput!): Merchant
+  adminUpdateMerchant(input: AdminUpdateMerchantInput!): Merchant
+}

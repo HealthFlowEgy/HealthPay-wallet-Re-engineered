@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>الإعدادات - HealthPay Merchant</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+        .sidebar { width: 260px; }
+        .main-content { margin-right: 260px; }
+        @media (max-width: 1024px) {
+            .sidebar { transform: translateX(100%); position: fixed; z-index: 50; }
+            .sidebar.open { transform: translateX(0); }
+            .main-content { margin-right: 0; }
+        }
+        .nav-item:hover { background: rgba(245, 158, 11, 0.1); }
+        .nav-item.active { background: rgba(245, 158, 11, 0.15); border-right: 3px solid #f59e0b; }
+    </style>
+</head>
+<body class="bg-gray-100">
+
+<!-- Sidebar -->
+<aside class="sidebar fixed top-0 right-0 h-full bg-white shadow-lg">
+    <div class="p-6 border-b">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl flex items-center justify-center text-white font-bold">HP</div>
+            <div>
+                <h1 class="font-bold text-gray-800">HealthPay</h1>
+                <p class="text-xs text-gray-500">بوابة التاجر</p>
+            </div>
+        </div>
+    </div>
+    
+    <nav class="p-4 space-y-1">
+        <a href="dashboard.html" class="nav-item flex items-center gap-3 px-4 py-3 text-gray-600 rounded-xl">
+            <span>📊</span> لوحة التحكم
+        </a>
+        <a href="payment-requests.html" class="nav-item flex items-center gap-3 px-4 py-3 text-gray-600 rounded-xl">
+            <span>📱</span> طلبات الدفع
+        </a>
+        <a href="transactions.html" class="nav-item flex items-center gap-3 px-4 py-3 text-gray-600 rounded-xl">
+            <span>💰</span> المعاملات
+        </a>
+        <a href="withdraw.html" class="nav-item flex items-center gap-3 px-4 py-3 text-gray-600 rounded-xl">
+            <span>💸</span> السحب
+        </a>
+        <hr class="my-4">
+        <a href="api-tokens.html" class="nav-item flex items-center gap-3 px-4 py-3 text-gray-600 rounded-xl">
+            <span>🔑</span> API Tokens
+        </a>
+        <a href="settings.html" class="nav-item active flex items-center gap-3 px-4 py-3 text-gray-600 rounded-xl">
+            <span>⚙️</span> الإعدادات
+        </a>
+    </nav>
+    
+    <div class="absolute bottom-0 left-0 right-0 p-4 border-t">
+        <div class="flex items-center gap-3 mb-3">
+            <div class="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center text-amber-600 font-bold" id="merchantInitial">M</div>
+            <div class="flex-1">
+                <p class="text-sm font-medium text-gray-800" id="merchantName">التاجر</p>
+                <p class="text-xs text-gray-500" id="merchantId">MRC-000001</p>
+            </div>
+        </div>
+        <button onclick="logout()" class="w-full py-2 text-red-600 hover:bg-red-50 rounded-lg text-sm">تسجيل الخروج</button>
+    </div>
+</aside>
+
+<!-- Main Content -->
+<main class="main-content min-h-screen p-6">
+    <div class="max-w-3xl mx-auto">
+        <!-- Header -->
+        <div class="mb-6">
+            <h1 class="text-2xl font-bold text-gray-800">الإعدادات</h1>
+            <p class="text-gray-500">إدارة إعدادات حسابك ونشاطك التجاري</p>
+        </div>
+
+        <div class="space-y-6">
+            <!-- Business Profile -->
+            <div class="bg-white rounded-xl shadow-sm">
+                <div class="p-6 border-b">
+                    <h2 class="text-lg font-bold text-gray-800">بيانات النشاط التجاري</h2>
+                </div>
+                <div class="p-6 space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">اسم النشاط التجاري</label>
+                        <input type="text" id="businessName" class="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-amber-500">
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">نوع النشاط</label>
+                            <select id="businessType" class="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-amber-500">
+                                <option value="pharmacy">صيدلية</option>
+                                <option value="clinic">عيادة</option>
+                                <option value="hospital">مستشفى</option>
+                                <option value="lab">معمل تحاليل</option>
+                                <option value="other">أخرى</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">الرقم الضريبي</label>
+                            <input type="text" id="taxId" class="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-amber-500 text-left" dir="ltr">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">العنوان</label>
+                        <textarea id="address" rows="2" class="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-amber-500"></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Contact Information -->
+            <div class="bg-white rounded-xl shadow-sm">
+                <div class="p-6 border-b">
+                    <h2 class="text-lg font-bold text-gray-800">معلومات الاتصال</h2>
+                </div>
+                <div class="p-6 space-y-4">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">اسم المسؤول</label>
+                            <input type="text" id="contactName" class="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-amber-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">رقم الهاتف</label>
+                            <input type="tel" id="phone" readonly class="w-full px-4 py-3 border rounded-xl bg-gray-100 text-left" dir="ltr">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">البريد الإلكتروني</label>
+                        <input type="email" id="email" class="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-amber-500 text-left" dir="ltr">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Payment Settings -->
+            <div class="bg-white rounded-xl shadow-sm">
+                <div class="p-6 border-b">
+                    <h2 class="text-lg font-bold text-gray-800">إعدادات الدفع</h2>
+                </div>
+                <div class="p-6 space-y-4">
+                    <div class="flex items-center justify-between py-3">
+                        <div>
+                            <p class="font-medium text-gray-800">قبول الدفع عبر QR</p>
+                            <p class="text-sm text-gray-500">السماح للعملاء بالدفع عبر مسح QR Code</p>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" checked class="sr-only peer" id="qrEnabled">
+                            <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+                        </label>
+                    </div>
+                    <div class="flex items-center justify-between py-3 border-t">
+                        <div>
+                            <p class="font-medium text-gray-800">طلبات الدفع</p>
+                            <p class="text-sm text-gray-500">إرسال طلبات دفع للعملاء</p>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" checked class="sr-only peer" id="paymentRequestsEnabled">
+                            <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+                        </label>
+                    </div>
+                    <div class="flex items-center justify-between py-3 border-t">
+                        <div>
+                            <p class="font-medium text-gray-800">الدفع عبر API</p>
+                            <p class="text-sm text-gray-500">تكامل API للدفع الآلي</p>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" checked class="sr-only peer" id="apiEnabled">
+                            <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Notification Settings -->
+            <div class="bg-white rounded-xl shadow-sm">
+                <div class="p-6 border-b">
+                    <h2 class="text-lg font-bold text-gray-800">إعدادات الإشعارات</h2>
+                </div>
+                <div class="p-6 space-y-4">
+                    <div class="flex items-center justify-between py-3">
+                        <div>
+                            <p class="font-medium text-gray-800">إشعارات المعاملات</p>
+                            <p class="text-sm text-gray-500">استلام إشعار عند كل معاملة جديدة</p>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" checked class="sr-only peer" id="transactionNotif">
+                            <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+                        </label>
+                    </div>
+                    <div class="flex items-center justify-between py-3 border-t">
+                        <div>
+                            <p class="font-medium text-gray-800">تقرير يومي</p>
+                            <p class="text-sm text-gray-500">استلام ملخص يومي للمعاملات</p>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" checked class="sr-only peer" id="dailyReport">
+                            <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+                        </label>
+                    </div>
+                    <div class="flex items-center justify-between py-3 border-t">
+                        <div>
+                            <p class="font-medium text-gray-800">إشعارات SMS</p>
+                            <p class="text-sm text-gray-500">استلام رسائل نصية للمعاملات الكبيرة</p>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" class="sr-only peer" id="smsNotif">
+                            <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Security -->
+            <div class="bg-white rounded-xl shadow-sm">
+                <div class="p-6 border-b">
+                    <h2 class="text-lg font-bold text-gray-800">الأمان</h2>
+                </div>
+                <div class="p-6 space-y-4">
+                    <button onclick="changePassword()" class="w-full py-3 border border-amber-500 text-amber-600 rounded-xl hover:bg-amber-50 transition-colors">
+                        تغيير كلمة المرور
+                    </button>
+                    <button onclick="enable2FA()" class="w-full py-3 border border-gray-300 text-gray-600 rounded-xl hover:bg-gray-50 transition-colors">
+                        تفعيل التحقق بخطوتين
+                    </button>
+                </div>
+            </div>
+
+            <!-- Save Button -->
+            <div class="flex justify-end">
+                <button onclick="saveSettings()" class="px-8 py-3 bg-amber-500 text-white rounded-xl font-medium hover:bg-amber-600 transition-colors">
+                    حفظ التغييرات
+                </button>
+            </div>
+        </div>
+    </div>
+</main>
+
+<script>
+let merchantInfo = null;
+
+document.addEventListener('DOMContentLoaded', () => {
+    checkAuth();
+    loadSettings();
+});
+
+function checkAuth() {
+    const token = localStorage.getItem('healthpay_merchant_token');
+    if (!token) {
+        window.location.href = 'index.html';
+        return;
+    }
+    merchantInfo = JSON.parse(localStorage.getItem('healthpay_merchant_info') || '{}');
+    if (merchantInfo.name) {
+        document.getElementById('merchantName').textContent = merchantInfo.name;
+        document.getElementById('merchantInitial').textContent = merchantInfo.name.charAt(0);
+        document.getElementById('contactName').value = merchantInfo.name;
+    }
+    if (merchantInfo.id) {
+        document.getElementById('merchantId').textContent = merchantInfo.id;
+    }
+    if (merchantInfo.phone) {
+        document.getElementById('phone').value = merchantInfo.phone;
+    }
+    if (merchantInfo.email) {
+        document.getElementById('email').value = merchantInfo.email;
+    }
+    if (merchantInfo.businessName) {
+        document.getElementById('businessName').value = merchantInfo.businessName;
+    }
+}
+
+function loadSettings() {
+    // Load saved settings from localStorage or API
+    const settings = JSON.parse(localStorage.getItem('healthpay_merchant_settings') || '{}');
+    // Apply settings to form
+}
+
+function saveSettings() {
+    // In production, this would save to the backend
+    alert('تم حفظ الإعدادات بنجاح');
+}
+
+function changePassword() {
+    alert('سيتم إرسال رابط تغيير كلمة المرور إلى بريدك الإلكتروني');
+}
+
+function enable2FA() {
+    alert('سيتم تفعيل التحقق بخطوتين');
+}
+
+function logout() {
+    localStorage.removeItem('healthpay_merchant_token');
+    localStorage.removeItem('healthpay_merchant_info');
+    window.location.href = 'index.html';
+}
+</script>
+
+</body>
+</html>

@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>مزودي الخدمات - HealthPay Admin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+        .sidebar { width: 260px; }
+        .main-content { margin-right: 260px; }
+        @media (max-width: 1024px) {
+            .sidebar { transform: translateX(100%); position: fixed; z-index: 50; }
+            .sidebar.open { transform: translateX(0); }
+            .main-content { margin-right: 0; }
+        }
+        .nav-item:hover { background: rgba(245, 158, 11, 0.1); }
+        .nav-item.active { background: rgba(245, 158, 11, 0.15); border-right: 3px solid #f59e0b; }
+        .status-active { background: #d1fae5; color: #065f46; }
+        .status-inactive { background: #fee2e2; color: #991b1b; }
+    </style>
+</head>
+<body class="bg-gray-100">
+
+<!-- Sidebar -->
+<aside class="sidebar fixed top-0 right-0 h-full bg-white shadow-lg transition-transform duration-300">
+    <div class="p-6 border-b">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl flex items-center justify-center text-white font-bold">HP</div>
+            <div>
+                <h1 class="font-bold text-gray-800">HealthPay</h1>
+                <p class="text-xs text-gray-500">لوحة الإدارة</p>
+            </div>
+        </div>
+    </div>
+    
+    <nav class="p-4">
+        <p class="text-xs text-gray-400 mb-3 px-3">القائمة الرئيسية</p>
+        <a href="dashboard.html" class="nav-item flex items-center gap-3 px-3 py-3 rounded-lg text-gray-700 mb-1">
+            <span>📊</span><span>لوحة التحكم</span>
+        </a>
+        <a href="users.html" class="nav-item flex items-center gap-3 px-3 py-3 rounded-lg text-gray-700 mb-1">
+            <span>👥</span><span>المستخدمين</span>
+        </a>
+        <a href="merchants.html" class="nav-item flex items-center gap-3 px-3 py-3 rounded-lg text-gray-700 mb-1">
+            <span>🏪</span><span>التجار</span>
+        </a>
+        <a href="transactions.html" class="nav-item flex items-center gap-3 px-3 py-3 rounded-lg text-gray-700 mb-1">
+            <span>💳</span><span>المعاملات</span>
+        </a>
+        <a href="service-providers.html" class="nav-item active flex items-center gap-3 px-3 py-3 rounded-lg text-gray-700 mb-1">
+            <span>🔌</span><span>مزودي الخدمات</span>
+        </a>
+        <a href="settings.html" class="nav-item flex items-center gap-3 px-3 py-3 rounded-lg text-gray-700 mb-1">
+            <span>⚙️</span><span>الإعدادات</span>
+        </a>
+    </nav>
+    
+    <div class="absolute bottom-0 left-0 right-0 p-4 border-t">
+        <div class="flex items-center gap-3 mb-3">
+            <div class="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center text-amber-600 font-bold">A</div>
+            <div class="flex-1">
+                <p class="text-sm font-medium text-gray-800" id="adminName">Admin</p>
+                <p class="text-xs text-gray-500" id="adminEmail">admin@healthpay.tech</p>
+            </div>
+        </div>
+        <button onclick="logout()" class="w-full py-2 text-red-600 hover:bg-red-50 rounded-lg text-sm">تسجيل الخروج</button>
+    </div>
+</aside>
+
+<!-- Main Content -->
+<main class="main-content min-h-screen p-6">
+    <div class="max-w-7xl mx-auto">
+        <!-- Header -->
+        <div class="flex justify-between items-center mb-6">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-800">مزودي الخدمات</h1>
+                <p class="text-gray-500">إدارة مزودي خدمات الدفع والفواتير</p>
+            </div>
+            <button onclick="openAddModal()" class="px-6 py-3 bg-amber-500 text-white rounded-xl hover:bg-amber-600 flex items-center gap-2">
+                <span>+</span>
+                <span>إضافة مزود</span>
+            </button>
+        </div>
+
+        <!-- Stats -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <div class="bg-white rounded-xl p-6 shadow-sm">
+                <div class="flex items-center gap-4">
+                    <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center text-blue-600 text-xl">🔌</div>
+                    <div>
+                        <p class="text-2xl font-bold text-gray-800" id="totalProviders">8</p>
+                        <p class="text-sm text-gray-500">إجمالي المزودين</p>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-white rounded-xl p-6 shadow-sm">
+                <div class="flex items-center gap-4">
+                    <div class="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center text-green-600 text-xl">✓</div>
+                    <div>
+                        <p class="text-2xl font-bold text-green-600" id="activeProviders">6</p>
+                        <p class="text-sm text-gray-500">نشط</p>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-white rounded-xl p-6 shadow-sm">
+                <div class="flex items-center gap-4">
+                    <div class="w-12 h-12 bg-yellow-100 rounded-xl flex items-center justify-center text-yellow-600 text-xl">📱</div>
+                    <div>
+                        <p class="text-2xl font-bold text-gray-800" id="mobileProviders">3</p>
+                        <p class="text-sm text-gray-500">شحن موبايل</p>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-white rounded-xl p-6 shadow-sm">
+                <div class="flex items-center gap-4">
+                    <div class="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center text-purple-600 text-xl">💡</div>
+                    <div>
+                        <p class="text-2xl font-bold text-gray-800" id="utilityProviders">5</p>
+                        <p class="text-sm text-gray-500">فواتير خدمات</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Providers Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="providersGrid">
+            <!-- Providers will be loaded here -->
+        </div>
+    </div>
+</main>
+
+<!-- Add Provider Modal -->
+<div id="addModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden items-center justify-center z-50">
+    <div class="bg-white rounded-2xl w-full max-w-md mx-4">
+        <div class="p-6 border-b flex justify-between items-center">
+            <h3 class="text-lg font-bold">إضافة مزود خدمة</h3>
+            <button onclick="closeAddModal()" class="text-gray-400 hover:text-gray-600">✕</button>
+        </div>
+        <form onsubmit="addProvider(event)" class="p-6 space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">اسم المزود</label>
+                <input type="text" id="newName" required class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">نوع الخدمة</label>
+                <select id="newType" required class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500">
+                    <option value="mobile">شحن موبايل</option>
+                    <option value="electricity">كهرباء</option>
+                    <option value="water">مياه</option>
+                    <option value="gas">غاز</option>
+                    <option value="internet">إنترنت</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">API Endpoint</label>
+                <input type="url" id="newEndpoint" placeholder="https://api.provider.com" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">API Key</label>
+                <input type="text" id="newApiKey" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500">
+            </div>
+            <div class="flex gap-3 pt-4">
+                <button type="button" onclick="closeAddModal()" class="flex-1 py-3 border rounded-xl hover:bg-gray-50">إلغاء</button>
+                <button type="submit" class="flex-1 py-3 bg-amber-500 text-white rounded-xl hover:bg-amber-600">إضافة</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+// Service Providers Data
+let providers = [
+    { id: 'vodafone', name: 'فودافون', type: 'mobile', icon: '📱', status: 'active', endpoint: 'https://api.vodafone.com.eg', transactions: 15234 },
+    { id: 'orange', name: 'أورانج', type: 'mobile', icon: '📱', status: 'active', endpoint: 'https://api.orange.eg', transactions: 12456 },
+    { id: 'etisalat', name: 'اتصالات', type: 'mobile', icon: '📱', status: 'active', endpoint: 'https://api.etisalat.eg', transactions: 9876 },
+    { id: 'electricity', name: 'شركة الكهرباء', type: 'electricity', icon: '💡', status: 'active', endpoint: 'https://api.eehc.gov.eg', transactions: 8765 },
+    { id: 'water', name: 'شركة المياه', type: 'water', icon: '💧', status: 'active', endpoint: 'https://api.hcww.com.eg', transactions: 5432 },
+    { id: 'gas', name: 'شركة الغاز', type: 'gas', icon: '🔥', status: 'inactive', endpoint: 'https://api.towngas.com.eg', transactions: 3210 },
+    { id: 'we', name: 'WE إنترنت', type: 'internet', icon: '🌐', status: 'active', endpoint: 'https://api.te.eg', transactions: 7654 },
+    { id: 'tedata', name: 'تي داتا', type: 'internet', icon: '🌐', status: 'inactive', endpoint: 'https://api.tedata.net', transactions: 2345 }
+];
+
+document.addEventListener('DOMContentLoaded', () => {
+    checkAuth();
+    renderProviders();
+    updateStats();
+});
+
+function checkAuth() {
+    const token = localStorage.getItem('healthpay_admin_token');
+    if (!token) {
+        window.location.href = 'index.html';
+        return;
+    }
+    const adminInfo = JSON.parse(localStorage.getItem('healthpay_admin_info') || '{}');
+    if (adminInfo.name) document.getElementById('adminName').textContent = adminInfo.name;
+    if (adminInfo.email) document.getElementById('adminEmail').textContent = adminInfo.email;
+}
+
+function updateStats() {
+    document.getElementById('totalProviders').textContent = providers.length;
+    document.getElementById('activeProviders').textContent = providers.filter(p => p.status === 'active').length;
+    document.getElementById('mobileProviders').textContent = providers.filter(p => p.type === 'mobile').length;
+    document.getElementById('utilityProviders').textContent = providers.filter(p => ['electricity', 'water', 'gas', 'internet'].includes(p.type)).length;
+}
+
+function renderProviders() {
+    const grid = document.getElementById('providersGrid');
+    grid.innerHTML = providers.map(p => `
+        <div class="bg-white rounded-xl p-6 shadow-sm">
+            <div class="flex items-start justify-between mb-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center text-2xl">${p.icon}</div>
+                    <div>
+                        <h3 class="font-bold text-gray-800">${p.name}</h3>
+                        <p class="text-sm text-gray-500">${getTypeLabel(p.type)}</p>
+                    </div>
+                </div>
+                <span class="px-3 py-1 rounded-full text-xs ${p.status === 'active' ? 'status-active' : 'status-inactive'}">
+                    ${p.status === 'active' ? 'نشط' : 'غير نشط'}
+                </span>
+            </div>
+            <div class="space-y-2 text-sm">
+                <div class="flex justify-between">
+                    <span class="text-gray-500">المعاملات</span>
+                    <span class="font-medium">${p.transactions.toLocaleString('ar-EG')}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-gray-500">API</span>
+                    <span class="font-mono text-xs text-gray-600">${p.endpoint.substring(0, 25)}...</span>
+                </div>
+            </div>
+            <div class="flex gap-2 mt-4">
+                <button onclick="toggleProviderStatus('${p.id}')" class="flex-1 py-2 ${p.status === 'active' ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'} rounded-lg text-sm hover:opacity-80">
+                    ${p.status === 'active' ? 'إيقاف' : 'تفعيل'}
+                </button>
+                <button onclick="editProvider('${p.id}')" class="flex-1 py-2 bg-amber-50 text-amber-600 rounded-lg text-sm hover:opacity-80">تعديل</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+function getTypeLabel(type) {
+    const labels = { mobile: 'شحن موبايل', electricity: 'كهرباء', water: 'مياه', gas: 'غاز', internet: 'إنترنت' };
+    return labels[type] || type;
+}
+
+function openAddModal() {
+    document.getElementById('addModal').classList.remove('hidden');
+    document.getElementById('addModal').classList.add('flex');
+}
+
+function closeAddModal() {
+    document.getElementById('addModal').classList.add('hidden');
+    document.getElementById('addModal').classList.remove('flex');
+}
+
+function addProvider(event) {
+    event.preventDefault();
+    const newProvider = {
+        id: 'provider-' + Date.now(),
+        name: document.getElementById('newName').value,
+        type: document.getElementById('newType').value,
+        icon: getTypeIcon(document.getElementById('newType').value),
+        status: 'active',
+        endpoint: document.getElementById('newEndpoint').value || '',
+        transactions: 0
+    };
+    providers.unshift(newProvider);
+    renderProviders();
+    updateStats();
+    closeAddModal();
+    alert('تم إضافة مزود الخدمة بنجاح');
+}
+
+function getTypeIcon(type) {
+    const icons = { mobile: '📱', electricity: '💡', water: '💧', gas: '🔥', internet: '🌐' };
+    return icons[type] || '🔌';
+}
+
+function toggleProviderStatus(id) {
+    const provider = providers.find(p => p.id === id);
+    if (provider) {
+        provider.status = provider.status === 'active' ? 'inactive' : 'active';
+        renderProviders();
+        updateStats();
+    }
+}
+
+function editProvider(id) {
+    alert('سيتم فتح نموذج تعديل المزود: ' + id);
+}
+
+function logout() {
+    localStorage.removeItem('healthpay_admin_token');
+    localStorage.removeItem('healthpay_admin_info');
+    window.location.href = 'index.html';
+}
+</script>
+
+</body>
+</html>

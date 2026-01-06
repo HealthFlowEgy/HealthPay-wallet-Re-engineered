@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لوحة التحكم - التاجر | HealthPay</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+        .spinner { border: 3px solid #f3f3f3; border-top: 3px solid #f59e0b; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .card-hover { transition: all 0.3s; }
+        .card-hover:hover { transform: translateY(-2px); box-shadow: 0 10px 40px rgba(0,0,0,0.1); }
+        .skeleton { background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; }
+        @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen pb-20 md:pb-6">
+
+<!-- Sidebar (Desktop) -->
+<aside class="hidden md:flex flex-col fixed right-0 top-0 h-full w-64 bg-white shadow-lg z-30">
+    <div class="p-6 border-b">
+        <h1 class="text-xl font-bold text-amber-600">💳 HealthPay</h1>
+        <p class="text-gray-500 text-sm">بوابة التاجر</p>
+    </div>
+    <nav class="flex-1 p-4 space-y-2">
+        <a href="dashboard.html" class="flex items-center gap-3 px-4 py-3 bg-amber-50 text-amber-600 rounded-xl font-medium">
+            <span>📊</span> لوحة التحكم
+        </a>
+        <a href="payment-requests.html" class="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-gray-50 rounded-xl">
+            <span>📱</span> طلبات الدفع
+        </a>
+        <a href="customers.html" class="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-gray-50 rounded-xl">
+            <span>👥</span> العملاء
+        </a>
+        <a href="transactions.html" class="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-gray-50 rounded-xl">
+            <span>💰</span> المعاملات
+        </a>
+        <a href=\"withdraw.html\" class="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-gray-50 rounded-xl">
+            <span>💸</span> السحب
+        </a>
+        <hr class="my-4">
+        <a href=\"api-tokens.html\" class="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-gray-50 rounded-xl">
+            <span>🔑</span> API Tokens
+        </a>
+        <a href=\"settings.html\" class="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-gray-50 rounded-xl">
+            <span>⚙️</span> الإعدادات
+        </a>
+    </nav>
+    <div class="p-4 border-t">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center text-amber-600 font-bold">ص</div>
+            <div>
+                <p class="font-medium text-gray-800">صيدلية الشفاء</p>
+                <p class="text-xs text-gray-500">ID: MER-12345</p>
+            </div>
+        </div>
+    </div>
+</aside>
+
+<!-- Main Content -->
+<main class="md:mr-64">
+    <!-- Header -->
+    <header class="bg-gradient-to-r from-amber-500 to-orange-600 text-white sticky top-0 z-20">
+        <div class="px-4 py-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h1 class="text-xl font-bold">مرحباً، صيدلية الشفاء 👋</h1>
+                    <p class="text-amber-100 text-sm">إليك ملخص نشاطك اليوم</p>
+                </div>
+                <div class="flex items-center gap-3">
+                    <span id="apiStatus" class="px-2 py-1 rounded-full text-xs bg-yellow-100 text-yellow-700">جاري الاتصال...</span>
+                    <button class="relative p-2 bg-white/20 rounded-full">
+                        <span class="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full text-xs flex items-center justify-center">3</span>
+                        🔔
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="p-4 space-y-6">
+        <!-- Balance Card -->
+        <div class="bg-gradient-to-br from-amber-500 to-orange-600 rounded-2xl p-6 text-white shadow-lg">
+            <div class="flex justify-between items-start mb-4">
+                <div>
+                    <p class="text-amber-100 text-sm">الرصيد المتاح</p>
+                    <p class="text-3xl font-bold mt-1" id="availableBalance">-</p>
+                </div>
+                <div class="text-left">
+                    <p class="text-amber-100 text-sm">الرصيد المعلق</p>
+                    <p class="text-xl font-semibold mt-1" id="pendingBalance">-</p>
+                </div>
+            </div>
+            <div class="flex gap-3">
+                <button class="flex-1 py-2 bg-white text-amber-600 rounded-xl font-medium hover:bg-amber-50 transition-colors">
+                    💸 سحب الرصيد
+                </button>
+                <button onclick="window.location.href='payment-requests.html'" class="flex-1 py-2 bg-white/20 text-white rounded-xl font-medium hover:bg-white/30 transition-colors">
+                    ➕ طلب دفع جديد
+                </button>
+            </div>
+        </div>
+
+        <!-- Quick Stats -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="bg-white rounded-xl p-4 shadow-sm card-hover">
+                <div class="flex items-center justify-between">
+                    <span class="text-2xl">💰</span>
+                    <span class="text-green-500 text-xs bg-green-50 px-2 py-1 rounded-full" id="revenueChange">-</span>
+                </div>
+                <p class="text-2xl font-bold text-gray-800 mt-2" id="todayRevenue">-</p>
+                <p class="text-gray-500 text-sm">إيرادات اليوم</p>
+            </div>
+            <div class="bg-white rounded-xl p-4 shadow-sm card-hover">
+                <div class="flex items-center justify-between">
+                    <span class="text-2xl">📊</span>
+                </div>
+                <p class="text-2xl font-bold text-gray-800 mt-2" id="todayTransactions">-</p>
+                <p class="text-gray-500 text-sm">معاملات اليوم</p>
+            </div>
+            <div class="bg-white rounded-xl p-4 shadow-sm card-hover">
+                <div class="flex items-center justify-between">
+                    <span class="text-2xl">👤</span>
+                </div>
+                <p class="text-2xl font-bold text-gray-800 mt-2" id="newCustomers">-</p>
+                <p class="text-gray-500 text-sm">عملاء جدد</p>
+            </div>
+            <div class="bg-white rounded-xl p-4 shadow-sm card-hover">
+                <div class="flex items-center justify-between">
+                    <span class="text-2xl">⏳</span>
+                </div>
+                <p class="text-2xl font-bold text-amber-600 mt-2" id="pendingRequests">-</p>
+                <p class="text-gray-500 text-sm">طلبات معلقة</p>
+            </div>
+        </div>
+
+        <!-- Charts Row -->
+        <div class="grid md:grid-cols-3 gap-6">
+            <!-- Revenue Chart -->
+            <div class="md:col-span-2 bg-white rounded-xl p-6 shadow-sm">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="font-bold text-gray-800">الإيرادات</h3>
+                    <select id="chartPeriod" onchange="updateRevenueChart()" class="text-sm border rounded-lg px-3 py-1">
+                        <option value="7">آخر 7 أيام</option>
+                        <option value="30">آخر 30 يوم</option>
+                        <option value="90">آخر 3 شهور</option>
+                    </select>
+                </div>
+                <div class="h-64 relative">
+                    <div id="chartLoading" class="absolute inset-0 flex items-center justify-center">
+                        <div class="spinner"></div>
+                    </div>
+                    <canvas id="revenueChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Transaction Types -->
+            <div class="bg-white rounded-xl p-6 shadow-sm">
+                <h3 class="font-bold text-gray-800 mb-4">أنواع المعاملات</h3>
+                <div class="h-48">
+                    <canvas id="typesChart"></canvas>
+                </div>
+                <div class="mt-4 space-y-2" id="typesLegend">
+                    <!-- Filled dynamically -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Transactions & Top Customers -->
+        <div class="grid md:grid-cols-2 gap-6">
+            <!-- Recent Transactions -->
+            <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+                <div class="p-4 border-b flex items-center justify-between">
+                    <h3 class="font-bold text-gray-800">آخر المعاملات</h3>
+                    <a href="transactions.html" class="text-amber-600 text-sm hover:underline">عرض الكل</a>
+                </div>
+                <div id="recentTransactions" class="divide-y">
+                    <!-- Loading skeleton -->
+                    <div class="p-4 flex items-center gap-3">
+                        <div class="w-10 h-10 skeleton rounded-full"></div>
+                        <div class="flex-1">
+                            <div class="h-4 skeleton rounded w-24 mb-2"></div>
+                            <div class="h-3 skeleton rounded w-16"></div>
+                        </div>
+                        <div class="h-4 skeleton rounded w-20"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Top Customers -->
+            <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+                <div class="p-4 border-b flex items-center justify-between">
+                    <h3 class="font-bold text-gray-800">أفضل العملاء</h3>
+                    <a href="customers.html" class="text-amber-600 text-sm hover:underline">عرض الكل</a>
+                </div>
+                <div id="topCustomers" class="divide-y">
+                    <!-- Loading skeleton -->
+                    <div class="p-4 flex items-center gap-3">
+                        <div class="w-8 h-8 skeleton rounded-full"></div>
+                        <div class="w-10 h-10 skeleton rounded-full"></div>
+                        <div class="flex-1">
+                            <div class="h-4 skeleton rounded w-24 mb-2"></div>
+                            <div class="h-3 skeleton rounded w-16"></div>
+                        </div>
+                        <div class="h-4 skeleton rounded w-20"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</main>
+
+<!-- Mobile Bottom Nav -->
+<nav class="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg z-30">
+    <div class="flex justify-around py-2">
+        <a href="dashboard.html" class="flex flex-col items-center py-2 px-4 text-amber-600">
+            <span class="text-xl">📊</span>
+            <span class="text-xs mt-1">الرئيسية</span>
+        </a>
+        <a href="payment-requests.html" class="flex flex-col items-center py-2 px-4 text-gray-500">
+            <span class="text-xl">📱</span>
+            <span class="text-xs mt-1">طلبات</span>
+        </a>
+        <a href="customers.html" class="flex flex-col items-center py-2 px-4 text-gray-500">
+            <span class="text-xl">👥</span>
+            <span class="text-xs mt-1">العملاء</span>
+        </a>
+        <a href="transactions.html" class="flex flex-col items-center py-2 px-4 text-gray-500">
+            <span class="text-xl">💰</span>
+            <span class="text-xs mt-1">المعاملات</span>
+        </a>
+    </div>
+</nav>
+
+<script>
+// ============================================
+// API Configuration
+// ============================================
+const API_CONFIG = {
+    baseUrl: window.location.hostname === 'localhost' 
+        ? 'http://104.248.245.150:4000/graphql'
+        : 'http://104.248.245.150:4000/graphql',
+    timeout: 10000
+};
+
+function getAuthToken() {
+    return localStorage.getItem('healthpay_token') || '';
+}
+
+function getMerchantId() {
+    return localStorage.getItem('healthpay_merchant_id') || 'merchant-demo-001';
+}
+
+// ============================================
+// GraphQL Client
+// ============================================
+async function graphqlRequest(query, variables = {}) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), API_CONFIG.timeout);
+    
+    try {
+        const response = await fetch(API_CONFIG.baseUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${getAuthToken()}`
+            },
+            body: JSON.stringify({ query, variables }),
+            signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        
+        const data = await response.json();
+        if (data.errors) throw new Error(data.errors[0].message);
+        
+        return data.data;
+    } catch (error) {
+        clearTimeout(timeoutId);
+        throw error;
+    }
+}
+
+// ============================================
+// GraphQL Queries
+// ============================================
+const QUERIES = {
+    dashboardData: `
+        query MerchantDashboard($merchantId: ID!, $period: Int) {
+            merchantDashboard(merchantId: $merchantId, period: $period) {
+                balance {
+                    available
+                    pending
+                }
+                todayStats {
+                    revenue
+                    revenueChange
+                    transactions
+                    newCustomers
+                    pendingRequests
+                }
+                revenueChart {
+                    labels
+                    data
+                }
+                transactionTypes {
+                    type
+                    label
+                    count
+                    percentage
+                }
+                recentTransactions {
+                    id
+                    amount
+                    type
+                    status
+                    createdAt
+                    customer {
+                        id
+                        name
+                        phone
+                    }
+                }
+                topCustomers {
+                    id
+                    name
+                    phone
+                    totalSpent
+                    transactionCount
+                }
+            }
+        }
+    `
+};
+
+// ============================================
+// State
+// ============================================
+let revenueChart = null;
+let typesChart = null;
+let isUsingMockData = false;
+
+// ============================================
+// Initialize
+// ============================================
+async function init() {
+    await loadDashboardData();
+}
+
+async function loadDashboardData() {
+    const period = parseInt(document.getElementById('chartPeriod').value);
+    
+    try {
+        const data = await graphqlRequest(QUERIES.dashboardData, {
+            merchantId: getMerchantId(),
+            period
+        });
+        
+        updateDashboard(data.merchantDashboard);
+        updateApiStatus(true);
+        isUsingMockData = false;
+        
+    } catch (error) {
+        console.error('API Error:', error);
+        loadMockData();
+        updateApiStatus(false);
+        isUsingMockData = true;
+    }
+}
+
+// ============================================
+// Mock Data Fallback
+// ============================================
+function loadMockData() {
+    const period = parseInt(document.getElementById('chartPeriod').value);
+    
+    // Generate mock data
+    const mockData = {
+        balance: {
+            available: 45750.50,
+            pending: 3200.00
+        },
+        todayStats: {
+            revenue: 4520.00,
+            revenueChange: 15,
+            transactions: 23,
+            newCustomers: 5,
+            pendingRequests: 8
+        },
+        revenueChart: generateMockChartData(period),
+        transactionTypes: [
+            { type: 'payment_request', count: 156, percentage: 65 },
+            { type: 'qr', count: 60, percentage: 25 },
+            { type: 'api', count: 24, percentage: 10 }
+        ],
+        recentTransactions: [
+            { id: 'TXN-001', customer: { name: 'محمد أحمد', phone: '01012345678' }, amount: 350, type: 'payment_request', status: 'completed', createdAt: new Date().toISOString() },
+            { id: 'TXN-002', customer: { name: 'سارة محمود', phone: '01123456789' }, amount: 520, type: 'qr', status: 'completed', createdAt: new Date(Date.now() - 3600000).toISOString() },
+            { id: 'TXN-003', customer: { name: 'أحمد حسن', phone: '01234567890' }, amount: 180, type: 'api', status: 'pending', createdAt: new Date(Date.now() - 7200000).toISOString() },
+            { id: 'TXN-004', customer: { name: 'فاطمة إبراهيم', phone: '01098765432' }, amount: 890, type: 'payment_request', status: 'completed', createdAt: new Date(Date.now() - 10800000).toISOString() },
+            { id: 'TXN-005', customer: { name: 'علي محمد', phone: '01111111111' }, amount: 245, type: 'qr', status: 'completed', createdAt: new Date(Date.now() - 14400000).toISOString() }
+        ],
+        topCustomers: [
+            { id: 'C001', name: 'محمد أحمد علي', phone: '01012345678', totalSpent: 12500, transactionCount: 45 },
+            { id: 'C002', name: 'سارة محمود', phone: '01123456789', totalSpent: 8900, transactionCount: 32 },
+            { id: 'C003', name: 'أحمد حسن', phone: '01234567890', totalSpent: 7200, transactionCount: 28 },
+            { id: 'C004', name: 'فاطمة إبراهيم', phone: '01098765432', totalSpent: 5800, transactionCount: 21 },
+            { id: 'C005', name: 'علي محمد', phone: '01111111111', totalSpent: 4500, transactionCount: 18 }
+        ]
+    };
+    
+    updateDashboard(mockData);
+}
+
+function generateMockChartData(days) {
+    const labels = [];
+    const data = [];
+    const now = new Date();
+    
+    for (let i = days - 1; i >= 0; i--) {
+        const date = new Date(now - i * 24 * 60 * 60 * 1000);
+        labels.push(date.toLocaleDateString('ar-EG', { month: 'short', day: 'numeric' }));
+        data.push(Math.floor(Math.random() * 5000) + 1000);
+    }
+    
+    return { labels, data };
+}
+
+// ============================================
+// Update Dashboard
+// ============================================
+function updateDashboard(data) {
+    // Balance
+    document.getElementById('availableBalance').textContent = formatCurrency(data.balance.available) + ' ج.م';
+    document.getElementById('pendingBalance').textContent = formatCurrency(data.balance.pending) + ' ج.م';
+    
+    // Today Stats
+    document.getElementById('todayRevenue').textContent = formatCurrency(data.todayStats.revenue);
+    document.getElementById('revenueChange').textContent = `+${data.todayStats.revenueChange}%`;
+    document.getElementById('todayTransactions').textContent = data.todayStats.transactions;
+    document.getElementById('newCustomers').textContent = data.todayStats.newCustomers;
+    document.getElementById('pendingRequests').textContent = data.todayStats.pendingRequests;
+    
+    // Charts
+    updateRevenueChartWithData(data.revenueChart);
+    updateTypesChart(data.transactionTypes);
+    
+    // Recent Transactions
+    renderRecentTransactions(data.recentTransactions);
+    
+    // Top Customers
+    renderTopCustomers(data.topCustomers);
+    
+    // Hide loading
+    document.getElementById('chartLoading').classList.add('hidden');
+}
+
+// ============================================
+// Charts
+// ============================================
+function updateRevenueChart() {
+    if (isUsingMockData) {
+        const period = parseInt(document.getElementById('chartPeriod').value);
+        updateRevenueChartWithData(generateMockChartData(period));
+    } else {
+        loadDashboardData();
+    }
+}
+
+function updateRevenueChartWithData(chartData) {
+    const ctx = document.getElementById('revenueChart').getContext('2d');
+    
+    if (revenueChart) {
+        revenueChart.destroy();
+    }
+    
+    const gradient = ctx.createLinearGradient(0, 0, 0, 250);
+    gradient.addColorStop(0, 'rgba(245, 158, 11, 0.3)');
+    gradient.addColorStop(1, 'rgba(245, 158, 11, 0)');
+    
+    revenueChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: chartData.labels,
+            datasets: [{
+                label: 'الإيرادات',
+                data: chartData.data,
+                borderColor: '#f59e0b',
+                backgroundColor: gradient,
+                fill: true,
+                tension: 0.4,
+                pointRadius: 4,
+                pointBackgroundColor: '#f59e0b'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: value => formatCurrency(value)
+                    }
+                }
+            }
+        }
+    });
+}
+
+function updateTypesChart(types) {
+    const ctx = document.getElementById('typesChart').getContext('2d');
+    
+    if (typesChart) {
+        typesChart.destroy();
+    }
+    
+    const colors = {
+        'payment_request': '#f59e0b',
+        'qr': '#10b981',
+        'api': '#3b82f6'
+    };
+    
+    const labels = {
+        'payment_request': 'طلبات الدفع',
+        'qr': 'QR Code',
+        'api': 'API'
+    };
+    
+    typesChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: types.map(t => labels[t.type]),
+            datasets: [{
+                data: types.map(t => t.percentage),
+                backgroundColor: types.map(t => colors[t.type]),
+                borderWidth: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            },
+            cutout: '70%'
+        }
+    });
+    
+    // Update legend
+    document.getElementById('typesLegend').innerHTML = types.map(t => `
+        <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+                <span class="w-3 h-3 rounded-full" style="background: ${colors[t.type]}"></span>
+                <span class="text-gray-600 text-sm">${labels[t.type]}</span>
+            </div>
+            <span class="font-medium text-gray-800">${t.percentage}%</span>
+        </div>
+    `).join('');
+}
+
+// ============================================
+// Render Lists
+// ============================================
+function renderRecentTransactions(transactions) {
+    const typeIcons = {
+        'payment_request': '📱',
+        'qr': '📷',
+        'api': '🔌'
+    };
+    
+    const statusColors = {
+        'completed': 'text-green-600',
+        'pending': 'text-amber-600',
+        'failed': 'text-red-600'
+    };
+    
+    document.getElementById('recentTransactions').innerHTML = transactions.map(t => `
+        <div class="p-4 flex items-center gap-3 hover:bg-gray-50 cursor-pointer" onclick="window.location.href='transactions.html'">
+            <div class="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center">
+                ${typeIcons[t.type]}
+            </div>
+            <div class="flex-1">
+                <p class="font-medium text-gray-800">${t.customer.name}</p>
+                <p class="text-gray-500 text-xs">${formatTime(t.createdAt)}</p>
+            </div>
+            <div class="text-left">
+                <p class="font-bold ${statusColors[t.status]}">${formatCurrency(t.amount)} ج.م</p>
+            </div>
+        </div>
+    `).join('');
+}
+
+function renderTopCustomers(customers) {
+    document.getElementById('topCustomers').innerHTML = customers.map((c, i) => `
+        <div class="p-4 flex items-center gap-3 hover:bg-gray-50 cursor-pointer" onclick="window.location.href='customers.html'">
+            <div class="w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
+                i === 0 ? 'bg-yellow-100 text-yellow-600' :
+                i === 1 ? 'bg-gray-200 text-gray-600' :
+                i === 2 ? 'bg-orange-100 text-orange-600' :
+                'bg-gray-100 text-gray-500'
+            }">
+                ${i + 1}
+            </div>
+            <div class="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center text-amber-600 font-bold">
+                ${c.name.charAt(0)}
+            </div>
+            <div class="flex-1">
+                <p class="font-medium text-gray-800">${c.name}</p>
+                <p class="text-gray-500 text-xs">${c.transactionCount} معاملة</p>
+            </div>
+            <div class="text-left">
+                <p class="font-bold text-gray-800">${formatCurrency(c.totalSpent)}</p>
+                <p class="text-gray-500 text-xs">ج.م</p>
+            </div>
+        </div>
+    `).join('');
+}
+
+// ============================================
+// Helpers
+// ============================================
+function formatCurrency(amount) {
+    return new Intl.NumberFormat('ar-EG', { minimumFractionDigits: 2 }).format(amount || 0);
+}
+
+function formatTime(dateStr) {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diff = now - date;
+    
+    if (diff < 60000) return 'الآن';
+    if (diff < 3600000) return `منذ ${Math.floor(diff / 60000)} دقيقة`;
+    if (diff < 86400000) return `منذ ${Math.floor(diff / 3600000)} ساعة`;
+    
+    return date.toLocaleDateString('ar-EG', { month: 'short', day: 'numeric' });
+}
+
+function updateApiStatus(connected) {
+    const statusEl = document.getElementById('apiStatus');
+    if (connected) {
+        statusEl.textContent = 'متصل';
+        statusEl.className = 'px-2 py-1 rounded-full text-xs bg-green-100 text-green-700';
+    } else {
+        statusEl.textContent = 'بيانات تجريبية';
+        statusEl.className = 'px-2 py-1 rounded-full text-xs bg-yellow-100 text-yellow-700';
+    }
+}
+
+// Initialize
+init();
+</script>
+
+</body>
+</html>

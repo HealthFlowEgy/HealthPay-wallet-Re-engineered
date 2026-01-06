@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>إعدادات الموقع - لوحة التحكم</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+        .spinner { border: 3px solid #f3f3f3; border-top: 3px solid #6366f1; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; display: inline-block; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        /* Toggle Switch */
+        .toggle-switch { position: relative; width: 60px; height: 32px; }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        .toggle-slider { position: absolute; cursor: pointer; inset: 0; background-color: #e5e7eb; transition: 0.3s; border-radius: 32px; }
+        .toggle-slider:before { position: absolute; content: ""; height: 26px; width: 26px; right: 3px; bottom: 3px; background-color: white; transition: 0.3s; border-radius: 50%; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+        input:checked + .toggle-slider { background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); }
+        input:checked + .toggle-slider:before { transform: translateX(-28px); }
+        
+        .feature-card { transition: all 0.3s; }
+        .feature-card:hover { box-shadow: 0 8px 25px rgba(0,0,0,0.1); }
+        .feature-card.disabled { opacity: 0.6; }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+
+<!-- Loading -->
+<div id="loading" class="fixed inset-0 bg-gray-100 flex items-center justify-center z-50">
+    <div class="text-center">
+        <div class="spinner mx-auto"></div>
+        <p class="mt-4 text-gray-600">جاري التحميل...</p>
+    </div>
+</div>
+
+<!-- No Auth -->
+<div id="noAuth" class="hidden fixed inset-0 bg-gray-100 flex items-center justify-center z-50">
+    <div class="text-center p-8 bg-white rounded-2xl shadow-xl max-w-sm mx-4">
+        <span class="text-6xl">🔒</span>
+        <h2 class="text-xl font-bold text-gray-800 mt-4">يرجى تسجيل الدخول كمسؤول</h2>
+        <a href="/admin/index.html" class="inline-block mt-6 bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-8 py-3 rounded-xl font-bold">
+            تسجيل الدخول
+        </a>
+    </div>
+</div>
+
+<!-- Main Content -->
+<div id="main" class="hidden">
+    <!-- Header -->
+    <header class="bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg">
+        <div class="max-w-4xl mx-auto px-4 py-6">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-4">
+                    <a href="/admin/dashboard.html" class="text-white hover:text-indigo-200 transition-colors">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                        </svg>
+                    </a>
+                    <div>
+                        <h1 class="text-2xl font-bold">⚙️ إعدادات الموقع</h1>
+                        <p class="text-indigo-200 text-sm">تحكم في ميزات المنصة</p>
+                    </div>
+                </div>
+                <button onclick="logout()" class="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg text-sm">خروج</button>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-4xl mx-auto px-4 py-8">
+        <!-- Alert Messages -->
+        <div id="successAlert" class="hidden bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-xl mb-6 flex items-center gap-3">
+            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+            </svg>
+            <span id="successMessage">تم حفظ الإعدادات بنجاح</span>
+        </div>
+
+        <div id="errorAlert" class="hidden bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-6 flex items-center gap-3">
+            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+            </svg>
+            <span id="errorMessage">حدث خطأ</span>
+        </div>
+
+        <!-- Feature Toggles -->
+        <div class="bg-white rounded-2xl shadow-lg overflow-hidden mb-6">
+            <div class="px-6 py-4 bg-gradient-to-r from-indigo-50 to-purple-50 border-b">
+                <h2 class="text-lg font-bold text-gray-800">🔧 تحكم في الميزات</h2>
+                <p class="text-gray-600 text-sm">تفعيل أو تعطيل ميزات المنصة الرئيسية</p>
+            </div>
+
+            <div class="p-6 space-y-6">
+                <!-- Cash In -->
+                <div class="feature-card flex items-center justify-between p-5 bg-gray-50 rounded-xl" id="cashinCard">
+                    <div class="flex items-center gap-4">
+                        <div class="w-14 h-14 bg-green-100 rounded-2xl flex items-center justify-center">
+                            <span class="text-3xl">💰</span>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-gray-800 text-lg">الإيداع (Cash In)</h3>
+                            <p class="text-gray-500 text-sm">السماح للمستخدمين بإيداع الأموال في محافظهم</p>
+                        </div>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="cashinToggle" checked onchange="updateFeatureCard('cashin')">
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+
+                <!-- Cash Out -->
+                <div class="feature-card flex items-center justify-between p-5 bg-gray-50 rounded-xl" id="cashoutCard">
+                    <div class="flex items-center gap-4">
+                        <div class="w-14 h-14 bg-red-100 rounded-2xl flex items-center justify-center">
+                            <span class="text-3xl">💸</span>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-gray-800 text-lg">السحب (Cash Out)</h3>
+                            <p class="text-gray-500 text-sm">السماح للتجار بسحب أرباحهم</p>
+                        </div>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="cashoutToggle" checked onchange="updateFeatureCard('cashout')">
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+
+                <!-- Transfer -->
+                <div class="feature-card flex items-center justify-between p-5 bg-gray-50 rounded-xl" id="transferCard">
+                    <div class="flex items-center gap-4">
+                        <div class="w-14 h-14 bg-blue-100 rounded-2xl flex items-center justify-center">
+                            <span class="text-3xl">↔️</span>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-gray-800 text-lg">التحويل (Transfer)</h3>
+                            <p class="text-gray-500 text-sm">السماح بالتحويلات بين المستخدمين</p>
+                        </div>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="transferToggle" checked onchange="updateFeatureCard('transfer')">
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+
+                <!-- Payments -->
+                <div class="feature-card flex items-center justify-between p-5 bg-gray-50 rounded-xl" id="paymentsCard">
+                    <div class="flex items-center gap-4">
+                        <div class="w-14 h-14 bg-purple-100 rounded-2xl flex items-center justify-center">
+                            <span class="text-3xl">🛒</span>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-gray-800 text-lg">المدفوعات (Payments)</h3>
+                            <p class="text-gray-500 text-sm">السماح بالدفع للتجار</p>
+                        </div>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="paymentsToggle" checked onchange="updateFeatureCard('payments')">
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+
+                <!-- Bill Payments -->
+                <div class="feature-card flex items-center justify-between p-5 bg-gray-50 rounded-xl" id="billsCard">
+                    <div class="flex items-center gap-4">
+                        <div class="w-14 h-14 bg-yellow-100 rounded-2xl flex items-center justify-center">
+                            <span class="text-3xl">📄</span>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-gray-800 text-lg">دفع الفواتير (Bill Payments)</h3>
+                            <p class="text-gray-500 text-sm">السماح بدفع فواتير الخدمات</p>
+                        </div>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="billsToggle" checked onchange="updateFeatureCard('bills')">
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+
+                <!-- Registration -->
+                <div class="feature-card flex items-center justify-between p-5 bg-gray-50 rounded-xl" id="registrationCard">
+                    <div class="flex items-center gap-4">
+                        <div class="w-14 h-14 bg-teal-100 rounded-2xl flex items-center justify-center">
+                            <span class="text-3xl">📝</span>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-gray-800 text-lg">التسجيل (Registration)</h3>
+                            <p class="text-gray-500 text-sm">السماح بتسجيل مستخدمين جدد</p>
+                        </div>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="registrationToggle" checked onchange="updateFeatureCard('registration')">
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <!-- Maintenance Mode -->
+        <div class="bg-white rounded-2xl shadow-lg overflow-hidden mb-6">
+            <div class="px-6 py-4 bg-gradient-to-r from-orange-50 to-red-50 border-b">
+                <h2 class="text-lg font-bold text-gray-800">🔧 وضع الصيانة</h2>
+                <p class="text-gray-600 text-sm">تفعيل وضع الصيانة يمنع الوصول للتطبيق</p>
+            </div>
+
+            <div class="p-6">
+                <div class="flex items-center justify-between p-5 bg-orange-50 rounded-xl border-2 border-orange-200" id="maintenanceCard">
+                    <div class="flex items-center gap-4">
+                        <div class="w-14 h-14 bg-orange-100 rounded-2xl flex items-center justify-center">
+                            <span class="text-3xl">🚧</span>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-gray-800 text-lg">وضع الصيانة</h3>
+                            <p class="text-gray-500 text-sm">عند التفعيل، سيظهر للمستخدمين رسالة صيانة</p>
+                        </div>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="maintenanceToggle" onchange="updateMaintenanceMode()">
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+
+                <div id="maintenanceMessage" class="hidden mt-4">
+                    <label class="block text-gray-700 font-medium mb-2">رسالة الصيانة</label>
+                    <textarea id="maintenanceText" rows="3" 
+                        class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        placeholder="جاري إجراء صيانة مجدولة. سنعود قريباً..."></textarea>
+                </div>
+            </div>
+        </div>
+
+        <!-- Save Button -->
+        <div class="flex gap-4">
+            <button onclick="saveSettings()" id="saveBtn" 
+                class="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                </svg>
+                <span id="saveBtnText">حفظ التغييرات</span>
+            </button>
+            <button onclick="resetSettings()" class="px-6 bg-gray-200 hover:bg-gray-300 text-gray-700 py-4 rounded-xl font-bold transition-colors">
+                إعادة تعيين
+            </button>
+        </div>
+
+        <!-- Last Updated -->
+        <div class="text-center mt-6">
+            <p class="text-gray-400 text-sm">آخر تحديث: <span id="lastUpdated">-</span></p>
+        </div>
+    </main>
+</div>
+
+<!-- Confirm Modal -->
+<div id="confirmModal" class="hidden fixed inset-0 z-50">
+    <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" onclick="closeConfirmModal()"></div>
+    <div class="absolute inset-0 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl p-6 max-w-md w-full">
+            <div class="text-center">
+                <div class="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <span class="text-3xl">⚠️</span>
+                </div>
+                <h3 class="text-lg font-bold text-gray-800 mb-2">تأكيد التغييرات</h3>
+                <p class="text-gray-600" id="confirmMessage">هل أنت متأكد من حفظ هذه التغييرات؟ قد يؤثر ذلك على المستخدمين النشطين.</p>
+            </div>
+            
+            <div class="flex gap-3 mt-6">
+                <button onclick="closeConfirmModal()" class="flex-1 py-3 bg-gray-100 rounded-xl font-medium text-gray-600">
+                    إلغاء
+                </button>
+                <button onclick="confirmSave()" class="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-medium">
+                    تأكيد الحفظ
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// State
+let settings = {
+    cashin: true,
+    cashout: true,
+    transfer: true,
+    payments: true,
+    bills: true,
+    registration: true,
+    maintenance: false,
+    maintenanceMessage: ''
+};
+
+let originalSettings = { ...settings };
+
+// Get admin token
+function getAdminToken() {
+    return localStorage.getItem('admin_token');
+}
+
+// Load settings from API
+async function loadSettings() {
+    const token = getAdminToken();
+    
+    if (!token) {
+        document.getElementById('loading').classList.add('hidden');
+        document.getElementById('noAuth').classList.remove('hidden');
+        return;
+    }
+    
+    try {
+        // In production, fetch from API
+        // const response = await fetch('/api/admin/site-settings', {
+        //     headers: { 'Authorization': `Bearer ${token}` }
+        // });
+        // settings = await response.json();
+        
+        // For now, use localStorage
+        const saved = localStorage.getItem('healthpay_site_settings');
+        if (saved) {
+            settings = JSON.parse(saved);
+        }
+        
+        originalSettings = { ...settings };
+        
+        // Apply to UI
+        document.getElementById('cashinToggle').checked = settings.cashin;
+        document.getElementById('cashoutToggle').checked = settings.cashout;
+        document.getElementById('transferToggle').checked = settings.transfer;
+        document.getElementById('paymentsToggle').checked = settings.payments;
+        document.getElementById('billsToggle').checked = settings.bills;
+        document.getElementById('registrationToggle').checked = settings.registration;
+        document.getElementById('maintenanceToggle').checked = settings.maintenance;
+        document.getElementById('maintenanceText').value = settings.maintenanceMessage || '';
+        
+        // Update UI state
+        ['cashin', 'cashout', 'transfer', 'payments', 'bills', 'registration'].forEach(updateFeatureCard);
+        updateMaintenanceMode();
+        
+        // Last updated
+        const lastUpdate = localStorage.getItem('healthpay_settings_updated');
+        if (lastUpdate) {
+            document.getElementById('lastUpdated').textContent = new Date(lastUpdate).toLocaleString('ar-EG');
+        }
+        
+    } catch (error) {
+        console.error('Failed to load settings:', error);
+        showError('فشل تحميل الإعدادات');
+    }
+    
+    document.getElementById('loading').classList.add('hidden');
+    document.getElementById('main').classList.remove('hidden');
+}
+
+// Update feature card visual state
+function updateFeatureCard(feature) {
+    const toggle = document.getElementById(`${feature}Toggle`);
+    const card = document.getElementById(`${feature}Card`);
+    
+    if (toggle && card) {
+        settings[feature] = toggle.checked;
+        card.classList.toggle('disabled', !toggle.checked);
+    }
+}
+
+// Update maintenance mode
+function updateMaintenanceMode() {
+    const toggle = document.getElementById('maintenanceToggle');
+    const messageDiv = document.getElementById('maintenanceMessage');
+    const card = document.getElementById('maintenanceCard');
+    
+    settings.maintenance = toggle.checked;
+    messageDiv.classList.toggle('hidden', !toggle.checked);
+    card.classList.toggle('border-red-500', toggle.checked);
+    card.classList.toggle('border-orange-200', !toggle.checked);
+    card.classList.toggle('bg-red-50', toggle.checked);
+    card.classList.toggle('bg-orange-50', !toggle.checked);
+}
+
+// Save settings
+function saveSettings() {
+    // Check for critical changes
+    const criticalChanges = [];
+    if (originalSettings.maintenance !== settings.maintenance) {
+        criticalChanges.push(settings.maintenance ? 'تفعيل وضع الصيانة' : 'إلغاء وضع الصيانة');
+    }
+    if (!settings.cashin && originalSettings.cashin) criticalChanges.push('تعطيل الإيداع');
+    if (!settings.cashout && originalSettings.cashout) criticalChanges.push('تعطيل السحب');
+    if (!settings.registration && originalSettings.registration) criticalChanges.push('تعطيل التسجيل');
+    
+    if (criticalChanges.length > 0) {
+        document.getElementById('confirmMessage').innerHTML = 
+            `هل أنت متأكد من إجراء التغييرات التالية؟<br><br>` +
+            criticalChanges.map(c => `• ${c}`).join('<br>');
+        document.getElementById('confirmModal').classList.remove('hidden');
+    } else {
+        confirmSave();
+    }
+}
+
+async function confirmSave() {
+    closeConfirmModal();
+    
+    const btn = document.getElementById('saveBtn');
+    const btnText = document.getElementById('saveBtnText');
+    btn.disabled = true;
+    btnText.innerHTML = '<span class="spinner"></span> جاري الحفظ...';
+    
+    try {
+        settings.maintenanceMessage = document.getElementById('maintenanceText').value;
+        
+        // In production, save to API
+        // await fetch('/api/admin/site-settings', {
+        //     method: 'POST',
+        //     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        //     body: JSON.stringify(settings)
+        // });
+        
+        // For now, save to localStorage
+        localStorage.setItem('healthpay_site_settings', JSON.stringify(settings));
+        localStorage.setItem('healthpay_settings_updated', new Date().toISOString());
+        
+        originalSettings = { ...settings };
+        document.getElementById('lastUpdated').textContent = new Date().toLocaleString('ar-EG');
+        
+        showSuccess('تم حفظ الإعدادات بنجاح');
+        
+    } catch (error) {
+        console.error('Failed to save settings:', error);
+        showError('فشل حفظ الإعدادات');
+    }
+    
+    btn.disabled = false;
+    btnText.innerHTML = '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg> حفظ التغييرات';
+}
+
+// Reset settings
+function resetSettings() {
+    settings = { ...originalSettings };
+    
+    document.getElementById('cashinToggle').checked = settings.cashin;
+    document.getElementById('cashoutToggle').checked = settings.cashout;
+    document.getElementById('transferToggle').checked = settings.transfer;
+    document.getElementById('paymentsToggle').checked = settings.payments;
+    document.getElementById('billsToggle').checked = settings.bills;
+    document.getElementById('registrationToggle').checked = settings.registration;
+    document.getElementById('maintenanceToggle').checked = settings.maintenance;
+    document.getElementById('maintenanceText').value = settings.maintenanceMessage || '';
+    
+    ['cashin', 'cashout', 'transfer', 'payments', 'bills', 'registration'].forEach(updateFeatureCard);
+    updateMaintenanceMode();
+    
+    showSuccess('تم إعادة تعيين الإعدادات');
+}
+
+// Modal functions
+function closeConfirmModal() {
+    document.getElementById('confirmModal').classList.add('hidden');
+}
+
+// Alert functions
+function showSuccess(message) {
+    document.getElementById('successMessage').textContent = message;
+    document.getElementById('successAlert').classList.remove('hidden');
+    document.getElementById('errorAlert').classList.add('hidden');
+    setTimeout(() => document.getElementById('successAlert').classList.add('hidden'), 5000);
+}
+
+function showError(message) {
+    document.getElementById('errorMessage').textContent = message;
+    document.getElementById('errorAlert').classList.remove('hidden');
+    document.getElementById('successAlert').classList.add('hidden');
+    setTimeout(() => document.getElementById('errorAlert').classList.add('hidden'), 5000);
+}
+
+function logout() {
+    localStorage.removeItem('admin_token');
+    window.location.href = '/admin/index.html';
+}
+
+// Initialize
+loadSettings();
+</script>
+
+</body>
+</html>

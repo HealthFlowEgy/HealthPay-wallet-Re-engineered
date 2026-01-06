@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>هيلث باي - بوابة التجار</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+        .spinner { border: 3px solid #f3f3f3; border-top: 3px solid #059669; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; display: inline-block; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .fade-in { animation: fadeIn 0.3s ease-in; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-emerald-800 via-teal-800 to-cyan-900 min-h-screen flex items-center justify-center p-4">
+
+<div class="bg-white rounded-3xl shadow-2xl p-8 w-full max-w-md fade-in">
+    <!-- Logo & Title -->
+    <div class="text-center mb-8">
+        <div class="w-20 h-20 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl mx-auto flex items-center justify-center mb-4 shadow-lg">
+            <span class="text-4xl">🏪</span>
+        </div>
+        <h1 class="text-2xl font-bold text-gray-800 mb-2">بوابة التجار</h1>
+        <p class="text-gray-500">سجّل دخولك لإدارة مدفوعاتك</p>
+    </div>
+
+    <!-- Error Message -->
+    <div id="errorMsg" class="hidden bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-6 text-center fade-in">
+        <span id="errorText"></span>
+    </div>
+
+    <!-- Success Message -->
+    <div id="successMsg" class="hidden bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-xl mb-6 text-center fade-in">
+        <span>✅ تم تسجيل الدخول بنجاح! جاري التحويل...</span>
+    </div>
+
+    <!-- Login Form -->
+    <form id="loginForm" class="space-y-6">
+        <div>
+            <label class="block text-gray-700 font-medium mb-2">رقم التاجر (Merchant ID)</label>
+            <input type="text" id="merchantId" placeholder="MRC-000001" 
+                   class="w-full px-4 py-4 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition text-left" 
+                   dir="ltr" required autocomplete="username">
+        </div>
+        
+        <div>
+            <label class="block text-gray-700 font-medium mb-2">كلمة المرور</label>
+            <div class="relative">
+                <input type="password" id="password" placeholder="••••••••" 
+                       class="w-full px-4 py-4 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition" 
+                       required autocomplete="current-password">
+                <button type="button" onclick="togglePassword()" class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                    <span id="eyeIcon">👁️</span>
+                </button>
+            </div>
+        </div>
+
+        <div class="flex items-center justify-between">
+            <label class="flex items-center cursor-pointer">
+                <input type="checkbox" id="rememberMe" class="w-4 h-4 text-emerald-600 rounded border-gray-300 focus:ring-emerald-500">
+                <span class="mr-2 text-sm text-gray-600">تذكرني</span>
+            </label>
+            <a href="#" class="text-sm text-emerald-600 hover:underline">نسيت كلمة المرور؟</a>
+        </div>
+
+        <button type="submit" id="loginBtn" 
+                class="w-full bg-gradient-to-r from-emerald-500 to-teal-600 text-white py-4 rounded-xl font-bold text-lg hover:from-emerald-600 hover:to-teal-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg transition-all duration-200 flex items-center justify-center gap-2">
+            <span id="btnText">تسجيل الدخول</span>
+            <span id="btnSpinner" class="hidden spinner"></span>
+        </button>
+    </form>
+
+    <!-- Register Link -->
+    <div class="mt-6 text-center">
+        <p class="text-gray-500 text-sm">ليس لديك حساب تاجر؟</p>
+        <a href="/merchant/register" class="text-emerald-600 font-medium hover:underline">سجّل كتاجر الآن</a>
+    </div>
+
+    <!-- Footer -->
+    <div class="mt-6 text-center">
+        <p class="text-gray-400 text-sm">🔒 محمي بواسطة تشفير SSL</p>
+    </div>
+
+    <!-- Test Credentials Hint -->
+    <div class="mt-6 p-4 bg-gray-50 rounded-xl">
+        <p class="text-gray-500 text-xs text-center mb-2">بيانات الاختبار:</p>
+        <p class="text-gray-600 text-xs text-center font-mono">MRC-000001 / merchant123</p>
+    </div>
+</div>
+
+<script>
+// Configuration
+const API_URL = window.location.origin + '/graphql';
+const DASHBOARD_URL = '/merchant/dashboard.html';
+
+// Check if already logged in
+(function checkAuth() {
+    const token = localStorage.getItem('healthpay_merchant_token');
+    if (token) {
+        verifyToken(token).then(valid => {
+            if (valid) {
+                window.location.href = DASHBOARD_URL;
+            } else {
+                localStorage.removeItem('healthpay_merchant_token');
+                localStorage.removeItem('healthpay_merchant_user');
+            }
+        });
+    }
+})();
+
+async function verifyToken(token) {
+    try {
+        const response = await fetch(API_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+                query: `query { merchantMe { id merchantId } }`
+            })
+        });
+        const result = await response.json();
+        return !result.errors && result.data?.merchantMe;
+    } catch {
+        return false;
+    }
+}
+
+function showError(message) {
+    const errorMsg = document.getElementById('errorMsg');
+    const errorText = document.getElementById('errorText');
+    errorText.textContent = message;
+    errorMsg.classList.remove('hidden');
+    document.getElementById('successMsg').classList.add('hidden');
+    
+    setTimeout(() => {
+        errorMsg.classList.add('hidden');
+    }, 5000);
+}
+
+function showSuccess() {
+    document.getElementById('successMsg').classList.remove('hidden');
+    document.getElementById('errorMsg').classList.add('hidden');
+}
+
+function setLoading(loading) {
+    const btn = document.getElementById('loginBtn');
+    const btnText = document.getElementById('btnText');
+    const btnSpinner = document.getElementById('btnSpinner');
+    
+    btn.disabled = loading;
+    if (loading) {
+        btnText.textContent = 'جاري تسجيل الدخول...';
+        btnSpinner.classList.remove('hidden');
+    } else {
+        btnText.textContent = 'تسجيل الدخول';
+        btnSpinner.classList.add('hidden');
+    }
+}
+
+function togglePassword() {
+    const passwordInput = document.getElementById('password');
+    const eyeIcon = document.getElementById('eyeIcon');
+    
+    if (passwordInput.type === 'password') {
+        passwordInput.type = 'text';
+        eyeIcon.textContent = '🙈';
+    } else {
+        passwordInput.type = 'password';
+        eyeIcon.textContent = '👁️';
+    }
+}
+
+// Main login function using client-side fetch
+async function handleLogin(merchantId, password) {
+    const mutation = `
+        mutation MerchantLogin($input: MerchantLoginInput!) {
+            merchantLogin(input: $input) {
+                token
+                refreshToken
+            }
+        }
+    `;
+    
+    const response = await fetch(API_URL, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            query: mutation,
+            variables: {
+                input: {
+                    merchantId: merchantId.toUpperCase(),
+                    password: password
+                }
+            }
+        })
+    });
+    
+    const result = await response.json();
+    
+    if (result.errors) {
+        throw new Error(result.errors[0]?.message || 'فشل تسجيل الدخول');
+    }
+    
+    if (!result.data?.merchantLogin?.token) {
+        throw new Error('لم يتم استلام رمز الدخول');
+    }
+    
+    return result.data.merchantLogin;
+}
+
+// Form submission handler
+document.getElementById('loginForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const merchantId = document.getElementById('merchantId').value.trim();
+    const password = document.getElementById('password').value;
+    const rememberMe = document.getElementById('rememberMe').checked;
+    
+    // Validation
+    if (!merchantId || !password) {
+        showError('يرجى إدخال رقم التاجر وكلمة المرور');
+        return;
+    }
+    
+    setLoading(true);
+    
+    try {
+        // Call the GraphQL API
+        const authData = await handleLogin(merchantId, password);
+        
+        // Store tokens
+        localStorage.setItem('healthpay_merchant_token', authData.token);
+        if (authData.refreshToken) {
+            localStorage.setItem('healthpay_merchant_refresh_token', authData.refreshToken);
+        }
+        
+        // Store merchant info
+        localStorage.setItem('healthpay_merchant_user', JSON.stringify({ merchantId }));
+        
+        // Remember me
+        if (rememberMe) {
+            localStorage.setItem('healthpay_merchant_id', merchantId);
+        } else {
+            localStorage.removeItem('healthpay_merchant_id');
+        }
+        
+        // Show success and redirect
+        showSuccess();
+        
+        setTimeout(() => {
+            window.location.href = DASHBOARD_URL;
+        }, 1000);
+        
+    } catch (error) {
+        console.error('Login error:', error);
+        showError(error.message || 'حدث خطأ أثناء تسجيل الدخول');
+        setLoading(false);
+    }
+});
+
+// Pre-fill merchant ID if remembered
+document.addEventListener('DOMContentLoaded', () => {
+    const savedMerchantId = localStorage.getItem('healthpay_merchant_id');
+    if (savedMerchantId) {
+        document.getElementById('merchantId').value = savedMerchantId;
+        document.getElementById('rememberMe').checked = true;
+    }
+});
+</script>
+</body>
+</html>

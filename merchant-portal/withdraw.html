@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>سحب الرصيد - HealthPay Merchant</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+        .sidebar { width: 260px; }
+        .main-content { margin-right: 260px; }
+        @media (max-width: 1024px) {
+            .sidebar { transform: translateX(100%); position: fixed; z-index: 50; }
+            .sidebar.open { transform: translateX(0); }
+            .main-content { margin-right: 0; }
+        }
+        .nav-item:hover { background: rgba(245, 158, 11, 0.1); }
+        .nav-item.active { background: rgba(245, 158, 11, 0.15); border-right: 3px solid #f59e0b; }
+        .status-pending { background: #fef3c7; color: #92400e; }
+        .status-completed { background: #d1fae5; color: #065f46; }
+        .status-rejected { background: #fee2e2; color: #991b1b; }
+    </style>
+</head>
+<body class="bg-gray-100">
+
+<!-- Sidebar -->
+<aside class="sidebar fixed top-0 right-0 h-full bg-white shadow-lg">
+    <div class="p-6 border-b">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl flex items-center justify-center text-white font-bold">HP</div>
+            <div>
+                <h1 class="font-bold text-gray-800">HealthPay</h1>
+                <p class="text-xs text-gray-500">بوابة التاجر</p>
+            </div>
+        </div>
+    </div>
+    
+    <nav class="p-4 space-y-1">
+        <a href="dashboard.html" class="nav-item flex items-center gap-3 px-4 py-3 text-gray-600 rounded-xl">
+            <span>📊</span> لوحة التحكم
+        </a>
+        <a href="payment-requests.html" class="nav-item flex items-center gap-3 px-4 py-3 text-gray-600 rounded-xl">
+            <span>📱</span> طلبات الدفع
+        </a>
+        <a href="transactions.html" class="nav-item flex items-center gap-3 px-4 py-3 text-gray-600 rounded-xl">
+            <span>💰</span> المعاملات
+        </a>
+        <a href="withdraw.html" class="nav-item active flex items-center gap-3 px-4 py-3 text-gray-600 rounded-xl">
+            <span>💸</span> السحب
+        </a>
+        <hr class="my-4">
+        <a href="api-tokens.html" class="nav-item flex items-center gap-3 px-4 py-3 text-gray-600 rounded-xl">
+            <span>🔑</span> API Tokens
+        </a>
+        <a href="settings.html" class="nav-item flex items-center gap-3 px-4 py-3 text-gray-600 rounded-xl">
+            <span>⚙️</span> الإعدادات
+        </a>
+    </nav>
+    
+    <div class="absolute bottom-0 left-0 right-0 p-4 border-t">
+        <div class="flex items-center gap-3 mb-3">
+            <div class="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center text-amber-600 font-bold" id="merchantInitial">M</div>
+            <div class="flex-1">
+                <p class="text-sm font-medium text-gray-800" id="merchantName">التاجر</p>
+                <p class="text-xs text-gray-500" id="merchantId">MRC-000001</p>
+            </div>
+        </div>
+        <button onclick="logout()" class="w-full py-2 text-red-600 hover:bg-red-50 rounded-lg text-sm">تسجيل الخروج</button>
+    </div>
+</aside>
+
+<!-- Main Content -->
+<main class="main-content min-h-screen p-6">
+    <div class="max-w-4xl mx-auto">
+        <!-- Header -->
+        <div class="mb-6">
+            <h1 class="text-2xl font-bold text-gray-800">سحب الرصيد</h1>
+            <p class="text-gray-500">سحب أرباحك إلى حسابك البنكي</p>
+        </div>
+
+        <!-- Balance Card -->
+        <div class="bg-gradient-to-br from-amber-500 to-orange-600 rounded-2xl p-6 text-white mb-6">
+            <p class="text-white/80 mb-2">الرصيد المتاح للسحب</p>
+            <p class="text-4xl font-bold mb-4" id="availableBalance">0.00 ج.م</p>
+            <div class="flex gap-4 text-sm">
+                <div>
+                    <p class="text-white/60">الرصيد المعلق</p>
+                    <p class="font-medium" id="pendingBalance">0.00 ج.م</p>
+                </div>
+                <div>
+                    <p class="text-white/60">إجمالي السحوبات</p>
+                    <p class="font-medium" id="totalWithdrawn">0.00 ج.م</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Withdrawal Form -->
+            <div class="bg-white rounded-xl shadow-sm">
+                <div class="p-6 border-b">
+                    <h2 class="text-lg font-bold text-gray-800">طلب سحب جديد</h2>
+                </div>
+                <form onsubmit="submitWithdrawal(event)" class="p-6 space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">المبلغ</label>
+                        <div class="relative">
+                            <input type="number" id="amount" required min="100" step="0.01" 
+                                   class="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-amber-500 text-left" 
+                                   dir="ltr" placeholder="0.00">
+                            <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">ج.م</span>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-1">الحد الأدنى للسحب: 100 ج.م</p>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">اسم البنك</label>
+                        <select id="bankName" required class="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-amber-500">
+                            <option value="">اختر البنك</option>
+                            <option value="البنك الأهلي المصري">البنك الأهلي المصري</option>
+                            <option value="بنك مصر">بنك مصر</option>
+                            <option value="البنك التجاري الدولي CIB">البنك التجاري الدولي CIB</option>
+                            <option value="بنك القاهرة">بنك القاهرة</option>
+                            <option value="بنك الإسكندرية">بنك الإسكندرية</option>
+                            <option value="بنك QNB الأهلي">بنك QNB الأهلي</option>
+                            <option value="بنك HSBC">بنك HSBC</option>
+                            <option value="بنك فيصل الإسلامي">بنك فيصل الإسلامي</option>
+                            <option value="other">بنك آخر</option>
+                        </select>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">رقم الحساب / IBAN</label>
+                        <input type="text" id="accountNumber" required 
+                               class="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-amber-500 text-left" 
+                               dir="ltr" placeholder="EG0000000000000000000000000">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">اسم صاحب الحساب</label>
+                        <input type="text" id="accountHolderName" required 
+                               class="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-amber-500">
+                    </div>
+                    
+                    <button type="submit" id="submitBtn" 
+                            class="w-full py-4 bg-amber-500 text-white rounded-xl font-medium hover:bg-amber-600 transition-colors">
+                        تقديم طلب السحب
+                    </button>
+                </form>
+            </div>
+
+            <!-- Withdrawal History -->
+            <div class="bg-white rounded-xl shadow-sm">
+                <div class="p-6 border-b">
+                    <h2 class="text-lg font-bold text-gray-800">سجل السحوبات</h2>
+                </div>
+                <div class="divide-y max-h-96 overflow-y-auto" id="withdrawalHistory">
+                    <div class="p-6 text-center text-gray-500">
+                        جاري التحميل...
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</main>
+
+<script>
+const API_ENDPOINT = 'http://104.248.245.150:4000/graphql';
+let merchantInfo = null;
+
+document.addEventListener('DOMContentLoaded', () => {
+    checkAuth();
+    loadMerchantData();
+    loadWithdrawalHistory();
+});
+
+function checkAuth() {
+    const token = localStorage.getItem('healthpay_merchant_token');
+    if (!token) {
+        window.location.href = 'index.html';
+        return;
+    }
+    merchantInfo = JSON.parse(localStorage.getItem('healthpay_merchant_info') || '{}');
+    if (merchantInfo.name) {
+        document.getElementById('merchantName').textContent = merchantInfo.name;
+        document.getElementById('merchantInitial').textContent = merchantInfo.name.charAt(0);
+    }
+    if (merchantInfo.id) {
+        document.getElementById('merchantId').textContent = merchantInfo.id;
+    }
+}
+
+async function loadMerchantData() {
+    // Mock data - in production this would come from API
+    document.getElementById('availableBalance').textContent = '45,230.00 ج.م';
+    document.getElementById('pendingBalance').textContent = '5,000.00 ج.م';
+    document.getElementById('totalWithdrawn').textContent = '125,000.00 ج.م';
+}
+
+function loadWithdrawalHistory() {
+    // Mock withdrawal history
+    const history = [
+        { id: 'WDR001', amount: 10000, bank: 'البنك الأهلي المصري', status: 'completed', date: '2026-01-05' },
+        { id: 'WDR002', amount: 5000, bank: 'بنك مصر', status: 'pending', date: '2026-01-04' },
+        { id: 'WDR003', amount: 15000, bank: 'البنك الأهلي المصري', status: 'completed', date: '2026-01-01' },
+        { id: 'WDR004', amount: 8000, bank: 'CIB', status: 'rejected', date: '2025-12-28' }
+    ];
+    
+    const statusLabels = {
+        'pending': 'قيد المراجعة',
+        'completed': 'مكتمل',
+        'rejected': 'مرفوض'
+    };
+    
+    document.getElementById('withdrawalHistory').innerHTML = history.length ? history.map(w => `
+        <div class="p-4">
+            <div class="flex justify-between items-start mb-2">
+                <div>
+                    <p class="font-medium text-gray-800">${w.amount.toLocaleString('ar-EG')} ج.م</p>
+                    <p class="text-sm text-gray-500">${w.bank}</p>
+                </div>
+                <span class="px-3 py-1 rounded-full text-xs status-${w.status}">
+                    ${statusLabels[w.status]}
+                </span>
+            </div>
+            <p class="text-xs text-gray-400">${new Date(w.date).toLocaleDateString('ar-EG')}</p>
+        </div>
+    `).join('') : '<div class="p-6 text-center text-gray-500">لا توجد سحوبات سابقة</div>';
+}
+
+async function submitWithdrawal(event) {
+    event.preventDefault();
+    
+    const amount = parseFloat(document.getElementById('amount').value);
+    const bankName = document.getElementById('bankName').value;
+    const accountNumber = document.getElementById('accountNumber').value;
+    const accountHolderName = document.getElementById('accountHolderName').value;
+    
+    if (amount < 100) {
+        alert('الحد الأدنى للسحب هو 100 ج.م');
+        return;
+    }
+    
+    const token = localStorage.getItem('healthpay_merchant_token');
+    const merchantId = merchantInfo?.id || 'MRC-000001';
+    
+    document.getElementById('submitBtn').disabled = true;
+    document.getElementById('submitBtn').textContent = 'جاري الإرسال...';
+    
+    try {
+        const response = await fetch(API_ENDPOINT, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': token ? `Bearer ${token}` : ''
+            },
+            body: JSON.stringify({
+                query: `mutation RequestWithdrawal($input: WithdrawalInput!) {
+                    requestWithdrawal(input: $input) {
+                        success
+                        message
+                        reference
+                        newBalance
+                    }
+                }`,
+                variables: {
+                    input: { merchantId, amount, bankName, accountNumber, accountHolderName }
+                }
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.data?.requestWithdrawal?.success) {
+            alert('تم إرسال طلب السحب بنجاح!\nرقم المرجع: ' + result.data.requestWithdrawal.reference);
+            document.getElementById('amount').value = '';
+            document.getElementById('accountNumber').value = '';
+            document.getElementById('accountHolderName').value = '';
+            loadWithdrawalHistory();
+        } else {
+            alert('خطأ: ' + (result.data?.requestWithdrawal?.message || result.errors?.[0]?.message || 'فشل في إرسال الطلب'));
+        }
+    } catch (error) {
+        console.error('Withdrawal error:', error);
+        alert('حدث خطأ أثناء إرسال الطلب');
+    } finally {
+        document.getElementById('submitBtn').disabled = false;
+        document.getElementById('submitBtn').textContent = 'تقديم طلب السحب';
+    }
+}
+
+function logout() {
+    localStorage.removeItem('healthpay_merchant_token');
+    localStorage.removeItem('healthpay_merchant_info');
+    window.location.href = 'index.html';
+}
+</script>
+
+</body>
+</html>

@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>العملاء - التاجر | HealthPay</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+        .spinner { border: 3px solid #f3f3f3; border-top: 3px solid #f59e0b; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .modal-overlay { background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); }
+        .modal-content { animation: slideUp 0.3s ease-out; }
+        @keyframes slideUp { from { transform: translateY(50px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .customer-card { transition: all 0.2s; }
+        .customer-card:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,0,0,0.1); }
+        .skeleton { background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; }
+        @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen pb-20">
+
+<!-- Header -->
+<header class="bg-gradient-to-r from-amber-500 to-orange-600 text-white sticky top-0 z-40">
+    <div class="max-w-6xl mx-auto px-4 py-4">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center gap-4">
+                <a href="dashboard.html" class="text-white hover:text-amber-100">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                    </svg>
+                </a>
+                <div>
+                    <h1 class="text-xl font-bold">👥 العملاء</h1>
+                    <p class="text-amber-100 text-sm">إدارة قاعدة عملائك</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-3">
+                <span id="apiStatus" class="px-2 py-1 rounded-full text-xs bg-yellow-100 text-yellow-700">جاري الاتصال...</span>
+                <button onclick="exportCustomers()" class="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg font-medium flex items-center gap-2">
+                    📥 تصدير
+                </button>
+            </div>
+        </div>
+    </div>
+</header>
+
+<main class="max-w-6xl mx-auto px-4 py-6">
+    <!-- Stats -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div class="bg-white rounded-xl p-4 shadow-sm">
+            <p class="text-gray-500 text-sm">إجمالي العملاء</p>
+            <p class="text-2xl font-bold text-gray-800" id="totalCustomers">-</p>
+        </div>
+        <div class="bg-white rounded-xl p-4 shadow-sm">
+            <p class="text-gray-500 text-sm">عملاء جدد (الشهر)</p>
+            <p class="text-2xl font-bold text-green-600" id="newCustomers">-</p>
+        </div>
+        <div class="bg-white rounded-xl p-4 shadow-sm">
+            <p class="text-gray-500 text-sm">متوسط القيمة</p>
+            <p class="text-2xl font-bold text-gray-800" id="avgValue">-</p>
+        </div>
+        <div class="bg-white rounded-xl p-4 shadow-sm">
+            <p class="text-gray-500 text-sm">نسبة التكرار</p>
+            <p class="text-2xl font-bold text-amber-600" id="repeatRate">-</p>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="bg-white rounded-xl p-4 shadow-sm mb-6">
+        <div class="flex flex-wrap gap-4">
+            <div class="flex-1 min-w-[200px]">
+                <div class="relative">
+                    <input type="text" id="searchInput" placeholder="بحث بالاسم أو رقم الهاتف..."
+                           class="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500">
+                    <svg class="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                    </svg>
+                </div>
+            </div>
+            <select id="sortBy" class="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500">
+                <option value="recent">الأحدث</option>
+                <option value="name">الاسم (أ-ي)</option>
+                <option value="transactions">الأكثر معاملات</option>
+                <option value="value">الأعلى قيمة</option>
+            </select>
+            <select id="filterBy" class="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500">
+                <option value="all">جميع العملاء</option>
+                <option value="new">عملاء جدد</option>
+                <option value="repeat">عملاء متكررون</option>
+                <option value="inactive">غير نشطين</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Loading State -->
+    <div id="loadingState" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div class="bg-white rounded-xl p-4 shadow-sm">
+            <div class="flex items-center gap-3">
+                <div class="w-12 h-12 skeleton rounded-full"></div>
+                <div class="flex-1">
+                    <div class="h-4 skeleton rounded w-24 mb-2"></div>
+                    <div class="h-3 skeleton rounded w-20"></div>
+                </div>
+            </div>
+        </div>
+        <div class="bg-white rounded-xl p-4 shadow-sm">
+            <div class="flex items-center gap-3">
+                <div class="w-12 h-12 skeleton rounded-full"></div>
+                <div class="flex-1">
+                    <div class="h-4 skeleton rounded w-24 mb-2"></div>
+                    <div class="h-3 skeleton rounded w-20"></div>
+                </div>
+            </div>
+        </div>
+        <div class="bg-white rounded-xl p-4 shadow-sm">
+            <div class="flex items-center gap-3">
+                <div class="w-12 h-12 skeleton rounded-full"></div>
+                <div class="flex-1">
+                    <div class="h-4 skeleton rounded w-24 mb-2"></div>
+                    <div class="h-3 skeleton rounded w-20"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Customers Grid -->
+    <div id="customersGrid" class="hidden grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <!-- Filled dynamically -->
+    </div>
+
+    <!-- Empty State -->
+    <div id="emptyState" class="hidden bg-white rounded-xl p-12 text-center shadow-sm">
+        <div class="text-6xl mb-4">👤</div>
+        <h3 class="text-lg font-bold text-gray-800 mb-2">لا يوجد عملاء</h3>
+        <p class="text-gray-500">سيظهر العملاء هنا بعد إتمام أول معاملة</p>
+    </div>
+
+    <!-- Pagination -->
+    <div id="pagination" class="hidden flex items-center justify-between mt-6">
+        <p class="text-gray-500 text-sm" id="paginationInfo">عرض 1-12 من 0 عميل</p>
+        <div class="flex gap-2">
+            <button onclick="prevPage()" class="px-4 py-2 bg-white rounded-lg shadow-sm hover:bg-gray-50" id="prevBtn" disabled>السابق</button>
+            <button onclick="nextPage()" class="px-4 py-2 bg-white rounded-lg shadow-sm hover:bg-gray-50" id="nextBtn">التالي</button>
+        </div>
+    </div>
+</main>
+
+<!-- Customer Details Modal -->
+<div id="detailsModal" class="hidden fixed inset-0 z-50">
+    <div class="modal-overlay absolute inset-0" onclick="closeModal()"></div>
+    <div class="absolute inset-0 flex items-center justify-center p-4">
+        <div class="modal-content bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+            <div class="p-6" id="detailsContent"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="hidden fixed bottom-4 left-1/2 -translate-x-1/2 bg-gray-800 text-white px-6 py-3 rounded-full shadow-lg z-50"></div>
+
+<script>
+// ============================================
+// API Configuration
+// ============================================
+const API_CONFIG = {
+    baseUrl: window.location.hostname === 'localhost' 
+        ? 'http://104.248.245.150:4000/graphql'
+        : 'http://104.248.245.150:4000/graphql',
+    timeout: 10000
+};
+
+function getAuthToken() {
+    return localStorage.getItem('healthpay_token') || '';
+}
+
+function getMerchantId() {
+    return localStorage.getItem('healthpay_merchant_id') || 'merchant-demo-001';
+}
+
+// ============================================
+// GraphQL Client
+// ============================================
+async function graphqlRequest(query, variables = {}) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), API_CONFIG.timeout);
+    
+    try {
+        const response = await fetch(API_CONFIG.baseUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${getAuthToken()}`
+            },
+            body: JSON.stringify({ query, variables }),
+            signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        
+        const data = await response.json();
+        if (data.errors) throw new Error(data.errors[0].message);
+        
+        return data.data;
+    } catch (error) {
+        clearTimeout(timeoutId);
+        throw error;
+    }
+}
+
+// ============================================
+// GraphQL Queries
+// ============================================
+const QUERIES = {
+    customers: `
+        query MerchantCustomers($merchantId: ID!, $filter: String, $sort: String, $limit: Int, $offset: Int) {
+            merchantCustomers(merchantId: $merchantId, filter: $filter, sort: $sort, limit: $limit, offset: $offset) {
+                customers {
+                    id
+                    name
+                    phone
+                    email
+                    totalSpent
+                    transactionCount
+                    avgTransaction
+                    firstTransaction
+                    lastTransaction
+                    tags
+                }
+                totalCount
+                stats {
+                    total
+                    newThisMonth
+                    avgValue
+                    repeatRate
+                }
+            }
+        }
+    `,
+    
+    customerDetails: `
+        query CustomerDetails($id: ID!) {
+            customer(id: $id) {
+                id
+                name
+                phone
+                email
+                totalSpent
+                transactionCount
+                avgTransaction
+                firstTransaction
+                lastTransaction
+                tags
+                recentTransactions {
+                    id
+                    amount
+                    status
+                    createdAt
+                }
+            }
+        }
+    `
+};
+
+// ============================================
+// State
+// ============================================
+let customers = [];
+let filteredCustomers = [];
+let currentPage = 1;
+let totalCount = 0;
+const perPage = 12;
+let isUsingMockData = false;
+
+// ============================================
+// Initialize
+// ============================================
+async function init() {
+    setupEventListeners();
+    await loadCustomers();
+}
+
+function setupEventListeners() {
+    document.getElementById('searchInput').addEventListener('input', debounce(filterCustomers, 300));
+    document.getElementById('sortBy').addEventListener('change', filterCustomers);
+    document.getElementById('filterBy').addEventListener('change', () => loadCustomers());
+}
+
+// ============================================
+// Load Customers
+// ============================================
+async function loadCustomers() {
+    showLoading();
+    
+    const filterBy = document.getElementById('filterBy').value;
+    const sortBy = document.getElementById('sortBy').value;
+    
+    try {
+        const data = await graphqlRequest(QUERIES.customers, {
+            merchantId: getMerchantId(),
+            filter: filterBy !== 'all' ? filterBy : null,
+            sort: sortBy,
+            limit: 100,
+            offset: 0
+        });
+        
+        customers = data.merchantCustomers.customers;
+        totalCount = data.merchantCustomers.totalCount;
+        updateStats(data.merchantCustomers.stats);
+        updateApiStatus(true);
+        isUsingMockData = false;
+        
+    } catch (error) {
+        console.error('API Error:', error);
+        loadMockData();
+        updateApiStatus(false);
+        isUsingMockData = true;
+    }
+    
+    filterCustomers();
+}
+
+// ============================================
+// Mock Data
+// ============================================
+function loadMockData() {
+    const now = new Date();
+    customers = [
+        { id: 'C001', name: 'محمد أحمد علي', phone: '01012345678', email: 'mohamed@email.com', totalSpent: 12500, transactionCount: 45, avgTransaction: 277.78, firstTransaction: new Date(now - 180 * 24 * 60 * 60 * 1000).toISOString(), lastTransaction: new Date(now - 2 * 24 * 60 * 60 * 1000).toISOString(), tags: ['VIP', 'متكرر'] },
+        { id: 'C002', name: 'سارة محمود', phone: '01123456789', email: 'sara@email.com', totalSpent: 8900, transactionCount: 32, avgTransaction: 278.13, firstTransaction: new Date(now - 120 * 24 * 60 * 60 * 1000).toISOString(), lastTransaction: new Date(now - 5 * 24 * 60 * 60 * 1000).toISOString(), tags: ['متكرر'] },
+        { id: 'C003', name: 'أحمد حسن', phone: '01234567890', email: null, totalSpent: 7200, transactionCount: 28, avgTransaction: 257.14, firstTransaction: new Date(now - 90 * 24 * 60 * 60 * 1000).toISOString(), lastTransaction: new Date(now - 10 * 24 * 60 * 60 * 1000).toISOString(), tags: ['متكرر'] },
+        { id: 'C004', name: 'فاطمة إبراهيم', phone: '01098765432', email: 'fatma@email.com', totalSpent: 5800, transactionCount: 21, avgTransaction: 276.19, firstTransaction: new Date(now - 60 * 24 * 60 * 60 * 1000).toISOString(), lastTransaction: new Date(now - 3 * 24 * 60 * 60 * 1000).toISOString(), tags: [] },
+        { id: 'C005', name: 'علي محمد', phone: '01111111111', email: null, totalSpent: 4500, transactionCount: 18, avgTransaction: 250.00, firstTransaction: new Date(now - 45 * 24 * 60 * 60 * 1000).toISOString(), lastTransaction: new Date(now - 15 * 24 * 60 * 60 * 1000).toISOString(), tags: [] },
+        { id: 'C006', name: 'نور الدين', phone: '01222222222', email: 'nour@email.com', totalSpent: 3200, transactionCount: 12, avgTransaction: 266.67, firstTransaction: new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString(), lastTransaction: new Date(now - 1 * 24 * 60 * 60 * 1000).toISOString(), tags: ['جديد'] },
+        { id: 'C007', name: 'مريم سعيد', phone: '01555555555', email: null, totalSpent: 1500, transactionCount: 5, avgTransaction: 300.00, firstTransaction: new Date(now - 20 * 24 * 60 * 60 * 1000).toISOString(), lastTransaction: new Date(now - 18 * 24 * 60 * 60 * 1000).toISOString(), tags: ['جديد'] },
+        { id: 'C008', name: 'يوسف عبدالله', phone: '01066666666', email: 'youssef@email.com', totalSpent: 850, transactionCount: 3, avgTransaction: 283.33, firstTransaction: new Date(now - 90 * 24 * 60 * 60 * 1000).toISOString(), lastTransaction: new Date(now - 70 * 24 * 60 * 60 * 1000).toISOString(), tags: ['غير نشط'] }
+    ];
+    
+    totalCount = customers.length;
+    
+    // Calculate stats
+    const repeat = customers.filter(c => c.transactionCount > 1).length;
+    const newThisMonth = customers.filter(c => {
+        const first = new Date(c.firstTransaction);
+        const monthAgo = new Date(now - 30 * 24 * 60 * 60 * 1000);
+        return first > monthAgo;
+    }).length;
+    
+    updateStats({
+        total: customers.length,
+        newThisMonth,
+        avgValue: customers.reduce((sum, c) => sum + c.avgTransaction, 0) / customers.length,
+        repeatRate: Math.round((repeat / customers.length) * 100)
+    });
+}
+
+// ============================================
+// UI Updates
+// ============================================
+function updateStats(stats) {
+    document.getElementById('totalCustomers').textContent = stats.total;
+    document.getElementById('newCustomers').textContent = '+' + stats.newThisMonth;
+    document.getElementById('avgValue').textContent = formatCurrency(stats.avgValue) + ' ج.م';
+    document.getElementById('repeatRate').textContent = stats.repeatRate + '%';
+}
+
+function showLoading() {
+    document.getElementById('loadingState').classList.remove('hidden');
+    document.getElementById('customersGrid').classList.add('hidden');
+    document.getElementById('emptyState').classList.add('hidden');
+    document.getElementById('pagination').classList.add('hidden');
+}
+
+function filterCustomers() {
+    const search = document.getElementById('searchInput').value.toLowerCase();
+    const sortBy = document.getElementById('sortBy').value;
+    const filterBy = document.getElementById('filterBy').value;
+    
+    filteredCustomers = customers.filter(c => {
+        // Search
+        if (search) {
+            const searchStr = `${c.name} ${c.phone} ${c.email || ''}`.toLowerCase();
+            if (!searchStr.includes(search)) return false;
+        }
+        
+        // Filter (if using mock data, apply client-side)
+        if (isUsingMockData && filterBy !== 'all') {
+            const daysSinceLastTx = (Date.now() - new Date(c.lastTransaction)) / (24 * 60 * 60 * 1000);
+            const daysSinceFirst = (Date.now() - new Date(c.firstTransaction)) / (24 * 60 * 60 * 1000);
+            
+            if (filterBy === 'new' && daysSinceFirst > 30) return false;
+            if (filterBy === 'repeat' && c.transactionCount <= 1) return false;
+            if (filterBy === 'inactive' && daysSinceLastTx < 60) return false;
+        }
+        
+        return true;
+    });
+    
+    // Sort
+    filteredCustomers.sort((a, b) => {
+        switch (sortBy) {
+            case 'name': return a.name.localeCompare(b.name, 'ar');
+            case 'transactions': return b.transactionCount - a.transactionCount;
+            case 'value': return b.totalSpent - a.totalSpent;
+            case 'recent':
+            default: return new Date(b.lastTransaction) - new Date(a.lastTransaction);
+        }
+    });
+    
+    currentPage = 1;
+    renderCustomers();
+}
+
+function renderCustomers() {
+    document.getElementById('loadingState').classList.add('hidden');
+    
+    if (filteredCustomers.length === 0) {
+        document.getElementById('customersGrid').classList.add('hidden');
+        document.getElementById('emptyState').classList.remove('hidden');
+        document.getElementById('pagination').classList.add('hidden');
+        return;
+    }
+    
+    document.getElementById('emptyState').classList.add('hidden');
+    document.getElementById('customersGrid').classList.remove('hidden');
+    document.getElementById('pagination').classList.remove('hidden');
+    
+    const totalPages = Math.ceil(filteredCustomers.length / perPage);
+    const start = (currentPage - 1) * perPage;
+    const end = start + perPage;
+    const pageCustomers = filteredCustomers.slice(start, end);
+    
+    document.getElementById('customersGrid').innerHTML = pageCustomers.map(c => {
+        const initials = c.name.split(' ').map(n => n[0]).slice(0, 2).join('');
+        const daysSinceLastTx = Math.floor((Date.now() - new Date(c.lastTransaction)) / (24 * 60 * 60 * 1000));
+        
+        return `
+            <div class="bg-white rounded-xl p-4 shadow-sm customer-card cursor-pointer" onclick="openDetails('${c.id}')">
+                <div class="flex items-center gap-3 mb-3">
+                    <div class="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center text-amber-600 font-bold text-lg">
+                        ${initials}
+                    </div>
+                    <div class="flex-1">
+                        <h3 class="font-bold text-gray-800">${c.name}</h3>
+                        <p class="text-gray-500 text-sm">${c.phone}</p>
+                    </div>
+                </div>
+                <div class="flex justify-between text-sm mb-3">
+                    <div>
+                        <p class="text-gray-500">إجمالي الإنفاق</p>
+                        <p class="font-bold text-gray-800">${formatCurrency(c.totalSpent)} ج.م</p>
+                    </div>
+                    <div class="text-left">
+                        <p class="text-gray-500">المعاملات</p>
+                        <p class="font-bold text-gray-800">${c.transactionCount}</p>
+                    </div>
+                </div>
+                <div class="flex items-center justify-between">
+                    <div class="flex gap-1">
+                        ${c.tags.map(tag => `
+                            <span class="px-2 py-0.5 ${getTagClass(tag)} rounded-full text-xs">${tag}</span>
+                        `).join('')}
+                    </div>
+                    <span class="text-gray-400 text-xs">${daysSinceLastTx === 0 ? 'اليوم' : `منذ ${daysSinceLastTx} يوم`}</span>
+                </div>
+            </div>
+        `;
+    }).join('');
+    
+    // Pagination
+    document.getElementById('paginationInfo').textContent = 
+        `عرض ${start + 1}-${Math.min(end, filteredCustomers.length)} من ${filteredCustomers.length} عميل`;
+    document.getElementById('prevBtn').disabled = currentPage === 1;
+    document.getElementById('nextBtn').disabled = currentPage >= totalPages;
+}
+
+function prevPage() {
+    if (currentPage > 1) {
+        currentPage--;
+        renderCustomers();
+    }
+}
+
+function nextPage() {
+    const totalPages = Math.ceil(filteredCustomers.length / perPage);
+    if (currentPage < totalPages) {
+        currentPage++;
+        renderCustomers();
+    }
+}
+
+function updateApiStatus(connected) {
+    const statusEl = document.getElementById('apiStatus');
+    if (connected) {
+        statusEl.textContent = 'متصل';
+        statusEl.className = 'px-2 py-1 rounded-full text-xs bg-green-100 text-green-700';
+    } else {
+        statusEl.textContent = 'بيانات تجريبية';
+        statusEl.className = 'px-2 py-1 rounded-full text-xs bg-yellow-100 text-yellow-700';
+    }
+}
+
+// ============================================
+// Details Modal
+// ============================================
+function openDetails(id) {
+    const c = customers.find(x => x.id === id);
+    if (!c) return;
+    
+    const initials = c.name.split(' ').map(n => n[0]).slice(0, 2).join('');
+    const customerAge = Math.floor((Date.now() - new Date(c.firstTransaction)) / (24 * 60 * 60 * 1000));
+    
+    document.getElementById('detailsContent').innerHTML = `
+        <div class="flex items-center justify-between mb-6">
+            <h3 class="text-xl font-bold text-gray-800">بيانات العميل</h3>
+            <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600">✕</button>
+        </div>
+        
+        <!-- Profile -->
+        <div class="text-center mb-6">
+            <div class="w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center text-amber-600 font-bold text-2xl mx-auto mb-3">
+                ${initials}
+            </div>
+            <h3 class="text-xl font-bold text-gray-800">${c.name}</h3>
+            <p class="text-gray-500">${c.phone}</p>
+            ${c.email ? `<p class="text-gray-400 text-sm">${c.email}</p>` : ''}
+            <div class="flex justify-center gap-2 mt-3">
+                ${c.tags.map(tag => `
+                    <span class="px-2 py-1 ${getTagClass(tag)} rounded-full text-xs">${tag}</span>
+                `).join('')}
+            </div>
+        </div>
+        
+        <!-- Stats -->
+        <div class="grid grid-cols-3 gap-3 mb-6">
+            <div class="bg-gray-50 rounded-xl p-3 text-center">
+                <p class="text-xl font-bold text-gray-800">${formatCurrency(c.totalSpent)}</p>
+                <p class="text-gray-500 text-xs">إجمالي الإنفاق</p>
+            </div>
+            <div class="bg-gray-50 rounded-xl p-3 text-center">
+                <p class="text-xl font-bold text-gray-800">${c.transactionCount}</p>
+                <p class="text-gray-500 text-xs">معاملة</p>
+            </div>
+            <div class="bg-gray-50 rounded-xl p-3 text-center">
+                <p class="text-xl font-bold text-gray-800">${formatCurrency(c.avgTransaction)}</p>
+                <p class="text-gray-500 text-xs">متوسط</p>
+            </div>
+        </div>
+        
+        <!-- Timeline -->
+        <div class="bg-gray-50 rounded-xl p-4 mb-6 space-y-2">
+            <div class="flex justify-between">
+                <span class="text-gray-500">أول معاملة</span>
+                <span class="text-gray-800">${formatDate(c.firstTransaction)}</span>
+            </div>
+            <div class="flex justify-between">
+                <span class="text-gray-500">آخر معاملة</span>
+                <span class="text-gray-800">${formatDate(c.lastTransaction)}</span>
+            </div>
+            <div class="flex justify-between">
+                <span class="text-gray-500">عميل منذ</span>
+                <span class="text-gray-800">${customerAge} يوم</span>
+            </div>
+        </div>
+        
+        <!-- Actions -->
+        <div class="flex gap-3">
+            <button onclick="sendPaymentRequest('${c.phone}')" class="flex-1 py-3 bg-amber-500 text-white rounded-xl font-medium hover:bg-amber-600">
+                📱 طلب دفع
+            </button>
+            <a href="https://wa.me/2${c.phone}" target="_blank" class="flex-1 py-3 bg-green-500 text-white rounded-xl font-medium hover:bg-green-600 text-center">
+                💬 واتساب
+            </a>
+        </div>
+    `;
+    
+    document.getElementById('detailsModal').classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeModal() {
+    document.getElementById('detailsModal').classList.add('hidden');
+    document.body.style.overflow = '';
+}
+
+function sendPaymentRequest(phone) {
+    closeModal();
+    window.location.href = `payment-requests.html?phone=${phone}`;
+}
+
+// ============================================
+// Export
+// ============================================
+function exportCustomers() {
+    const headers = ['الاسم', 'رقم الهاتف', 'البريد', 'إجمالي الإنفاق', 'عدد المعاملات', 'المتوسط'];
+    const rows = filteredCustomers.map(c => [
+        c.name,
+        c.phone,
+        c.email || '-',
+        c.totalSpent,
+        c.transactionCount,
+        c.avgTransaction.toFixed(2)
+    ]);
+    
+    const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `customers-${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+    
+    showToast('تم تصدير بيانات العملاء');
+}
+
+// ============================================
+// Helpers
+// ============================================
+function getTagClass(tag) {
+    const classes = {
+        'VIP': 'bg-yellow-100 text-yellow-700',
+        'متكرر': 'bg-green-100 text-green-700',
+        'جديد': 'bg-blue-100 text-blue-700',
+        'غير نشط': 'bg-gray-100 text-gray-600'
+    };
+    return classes[tag] || 'bg-gray-100 text-gray-600';
+}
+
+function formatCurrency(amount) {
+    return new Intl.NumberFormat('ar-EG', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(amount || 0);
+}
+
+function formatDate(dateStr) {
+    return new Date(dateStr).toLocaleDateString('ar-EG', { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+function debounce(func, wait) {
+    let timeout;
+    return function(...args) {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func.apply(this, args), wait);
+    };
+}
+
+function showToast(message) {
+    const toast = document.getElementById('toast');
+    toast.textContent = message;
+    toast.classList.remove('hidden');
+    setTimeout(() => toast.classList.add('hidden'), 3000);
+}
+
+// Initialize
+init();
+</script>
+
+</body>
+</html>
